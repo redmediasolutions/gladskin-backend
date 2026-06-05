@@ -1,5 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -9,24 +13,135 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _isLoading = false;
-  String? _error;
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _otpController = TextEditingController();
 
-  Future<void> _login() async {
-    setState(() { _isLoading = true; _error = null; });
+  bool _isOtpSent = false;
+  bool _isLoading = false;
+
+  String _reqId = "";
+
+  final String baseUrl =
+      "https://us-central1-glowfit-4dfe8.cloudfunctions.net";
+
+  /// SEND OTP
+  Future<void> _sendOtp() async {
+    final phone =
+        _phoneController.text.replaceAll(RegExp(r'\D'), '');
+
+    if (phone.length < 10) {
+      _showMessage("Enter valid mobile number");
+      return;
+    }
+
+    setState(() => _isLoading = true);
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      final response = await http.post(
+        Uri.parse("$baseUrl/sendGladskinOtp"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "phoneNumber": phone,
+          "isAdmin": true,
+        }),
       );
-    } on FirebaseAuthException catch (e) {
-      setState(() => _error = e.message);
+
+      final data = jsonDecode(response.body);
+
+      if (data["success"] != true) {
+        throw Exception(data["message"]);
+      }
+
+      setState(() {
+        _isOtpSent = true;
+        _reqId = data["reqId"];
+      });
+
+      _showMessage("OTP sent successfully");
+    } catch (e) {
+      _showMessage(e.toString().replaceAll("Exception: ", ""));
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  /// VERIFY OTP
+  Future<void> _verifyOtp() async {
+    final phone =
+        _phoneController.text.replaceAll(RegExp(r'\D'), '');
+
+    final otp = _otpController.text.trim();
+
+    if (otp.length != 4) {
+      _showMessage("Enter valid OTP");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/verifyGladskinOtp"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "phoneNumber": phone,
+          "otp": otp,
+          "reqId": _reqId,
+          "isAdmin": true,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (data["success"] != true) {
+        throw Exception(data["message"]);
+      }
+
+      final token = data["token"];
+
+      /// Firebase Login
+      /// Firebase Login
+final userCredential =
+    await FirebaseAuth.instance.signInWithCustomToken(token);
+
+final user = userCredential.user;
+
+if (user == null) {
+  throw Exception("Authentication failed");
+}
+
+/// CHECK ADMIN ACCESS
+final adminDoc = await FirebaseFirestore.instance
+    .collection('Users')
+    .doc(user.uid)
+    .get();
+
+final isAdmin = adminDoc.data()?['isAdmin'] == true;
+
+if (!isAdmin) {
+  /// Immediately logout
+  await FirebaseAuth.instance.signOut();
+
+  throw Exception("Access denied");
+}
+
+_showMessage("Login successful");
+
+// Navigate to dashboard here
+
+      // Navigate to dashboard here
+
+    } catch (e) {
+      _showMessage(e.toString().replaceAll("Exception: ", ""));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -59,39 +174,43 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: Color(0xFFB5838D),
                 ),
               ),
+
               const SizedBox(height: 4),
+
               const Text(
                 'Admin Panel',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                ),
               ),
+
               const SizedBox(height: 32),
 
+              /// PHONE FIELD
               TextField(
-                controller: _emailController,
+                controller: _phoneController,
+                enabled: !_isOtpSent,
+                keyboardType: TextInputType.phone,
                 decoration: const InputDecoration(
-                  labelText: 'Email',
+                  labelText: 'Mobile Number',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email_outlined),
+                  prefixIcon: Icon(Icons.phone_outlined),
                 ),
               ),
-              const SizedBox(height: 16),
 
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock_outlined),
-                ),
-                onSubmitted: (_) => _login(),
-              ),
+              /// OTP FIELD
+              if (_isOtpSent) ...[
+                const SizedBox(height: 16),
 
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  _error!,
-                  style: const TextStyle(color: Colors.red, fontSize: 13),
+                TextField(
+                  controller: _otpController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'OTP',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
                 ),
               ],
 
@@ -101,29 +220,40 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
+                  onPressed: _isLoading
+                      ? null
+                      : _isOtpSent
+                          ? _verifyOtp
+                          : _sendOtp,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFB5838D),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
                   ),
-                  onPressed: _isLoading ? null : _login,
                   child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
+                      ? const CircularProgressIndicator(
+                          color: Colors.white,
                         )
-                      : const Text(
-                          'Login',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      : Text(
+                          _isOtpSent
+                              ? 'Verify OTP'
+                              : 'Send OTP',
                         ),
                 ),
               ),
+
+              if (_isOtpSent) ...[
+                const SizedBox(height: 12),
+
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _isOtpSent = false;
+                      _otpController.clear();
+                    });
+                  },
+                  child: const Text("Change Number"),
+                ),
+              ],
             ],
           ),
         ),
