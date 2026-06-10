@@ -245,59 +245,263 @@ class _CustomersScreenState extends State<CustomersScreen> {
   String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
 
   Widget _tableHeader() {
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      color: Colors.grey.shade100,
-      child: const Row(
-        children: [
-          Expanded(flex: 2, child: Text('Customer', style: TextStyle(fontWeight: FontWeight.w600))),
-          Expanded(flex: 3, child: Text('Email', style: TextStyle(fontWeight: FontWeight.w600))),
-          Expanded(flex: 2, child: Text('Phone', style: TextStyle(fontWeight: FontWeight.w600))),
-          Expanded(flex: 2, child: Text('Joined', style: TextStyle(fontWeight: FontWeight.w600))),
-          Expanded(flex: 1, child: Text('Type', style: TextStyle(fontWeight: FontWeight.w600))),
-          Expanded(flex: 1, child: Text('Role', style: TextStyle(fontWeight: FontWeight.w600))),
-          Expanded(flex: 1, child: Text('Actions', style: TextStyle(fontWeight: FontWeight.w600))),
-        ],
-      ),
-    );
-  }
-
-  Widget _customerRow(Customer c) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-      ),
-      child: Row(
-        children: [
-          Expanded(flex: 2, child: Text(c.name)),
-          Expanded(flex: 3, child: Text(c.email)),
-          Expanded(flex: 2, child: Text(c.phone)),
-          Expanded(flex: 2, child: Text(_formatDate(c.createdAt))),
-          Expanded(flex: 1, child: Text(c.isAnonymous ? 'Guest' : 'User')),
-          Expanded(flex: 1, child: Text(c.isAdmin ? 'Admin' : 'User')),
-          Expanded(
-            flex: 1,
-            child: PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'cart') _openCustomerCart(c);
-                if (value == 'rewards') {
-                  context.go(
-                    '/customers/${c.id}/rewards?name=${Uri.encodeComponent(c.name)}',
-                  );
-                }
-              },
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: 'cart', child: Text('View Cart')),
-                PopupMenuItem(value: 'rewards', child: Text('View Rewards')),
-              ],
+  return Container(
+    height: 40,
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    color: Colors.grey.shade100,
+    child: const Row(
+      children: [
+        Expanded(
+          flex: 2,
+          child: Text(
+            'Customer',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
             ),
           ),
-        ],
-      ),
-    );
+        ),
+
+        Expanded(
+          flex: 3,
+          child: Text(
+            'Email',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+
+        Expanded(
+          flex: 2,
+          child: Text(
+            'Phone',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+
+        Expanded(
+          flex: 2,
+          child: Text(
+            'Joined',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+
+        Expanded(
+          flex: 2,
+          child: Text(
+            'Source',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+
+        Expanded(
+          flex: 1,
+          child: Text(
+            'Role',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+
+        Expanded(
+          flex: 1,
+          child: Text(
+            'Actions',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+  Widget _customerRow(Customer c) {
+
+  String sourceLabel = "Organic";
+  Color sourceColor = Colors.grey;
+
+  if (c.referredBy.isNotEmpty) {
+    sourceLabel = "Referral";
+    sourceColor = Colors.green;
+  } else if (c.influencerCode.isNotEmpty) {
+    sourceLabel = "Influencer";
+    sourceColor = Colors.deepPurple;
   }
+
+  return Container(
+    padding: const EdgeInsets.symmetric(
+      horizontal: 8,
+      vertical: 10,
+    ),
+    decoration: BoxDecoration(
+      border: Border(
+        bottom: BorderSide(
+          color: Colors.grey.shade200,
+        ),
+      ),
+    ),
+    child: Row(
+      children: [
+
+        /// CUSTOMER
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+
+              Text(
+                c.name,
+                style: const TextStyle(
+                  fontWeight:
+                      FontWeight.w600,
+                ),
+              ),
+
+              Text(
+                c.authUid,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        /// EMAIL
+        Expanded(
+          flex: 3,
+          child: Text(c.email),
+        ),
+
+        /// PHONE
+        Expanded(
+          flex: 2,
+          child: Text(c.phone),
+        ),
+
+        /// JOINED
+        Expanded(
+          flex: 2,
+          child: Text(
+            _formatDate(c.createdAt),
+          ),
+        ),
+
+        /// SOURCE
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: sourceColor
+                      .withOpacity(0.12),
+                  borderRadius:
+                      BorderRadius.circular(20),
+                ),
+                child: Text(
+                  sourceLabel,
+                  style: TextStyle(
+                    color: sourceColor,
+                    fontSize: 11,
+                    fontWeight:
+                        FontWeight.w600,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 4),
+
+              if (c.referredBy.isNotEmpty)
+                Text(
+                  c.referredBy,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color:
+                        Colors.grey.shade600,
+                  ),
+                ),
+
+              if (c.influencerCode.isNotEmpty)
+                Text(
+                  c.influencerCode,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color:
+                        Colors.grey.shade600,
+                  ),
+                ),
+            ],
+          ),
+        ),
+
+        /// ROLE
+        Expanded(
+          flex: 1,
+          child: Text(
+            c.isAdmin
+                ? 'Admin'
+                : 'User',
+          ),
+        ),
+
+        /// ACTIONS
+        Expanded(
+          flex: 1,
+          child: PopupMenuButton<String>(
+            onSelected: (value) {
+
+              if (value == 'cart') {
+                _openCustomerCart(c);
+              }
+
+              if (value == 'rewards') {
+                context.go(
+                  '/customers/${c.id}/rewards?name=${Uri.encodeComponent(c.name)}',
+                );
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'cart',
+                child: Text(
+                  'View Cart',
+                ),
+              ),
+              PopupMenuItem(
+                value: 'rewards',
+                child: Text(
+                  'View Rewards',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
 }
 
 // ===================== EXPORT DIALOG =====================

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gladskin_backend/models/coupon_model.dart';
 import 'package:gladskin_backend/models/influencer_model.dart';
+import 'package:gladskin_backend/models/reward_withdrawal.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db =
@@ -9,74 +10,175 @@ class FirestoreService {
   /// ================= Users =================
 
   Future<List<QueryDocumentSnapshot>>
-      fetchUsersPage({
-    QueryDocumentSnapshot? lastDoc,
-    int limit = 20,
-    String? searchText,
-    DateTime? startDate,
-    DateTime? endDate,
-  }) async {
-    Query query;
+    fetchUsersPage({
+  QueryDocumentSnapshot? lastDoc,
+  int limit = 20,
+  String? searchText,
+  DateTime? startDate,
+  DateTime? endDate,
+}) async {
+  try {
+    Query query =
+        _db.collection('Users');
 
+    /// SEARCH BY PHONE
     if (searchText != null &&
         searchText.trim().isNotEmpty) {
-      query = _db
-          .collection('Users')
-          .where(
-            'phoneNumber',
-            isEqualTo: searchText.trim(),
-          )
-          .limit(limit);
-    } else {
-      query = _db
-          .collection('Users')
-          .orderBy(
-            'createdAt',
-            descending: true,
-          )
-          .limit(limit);
-
-      if (startDate != null) {
-        query = query.where(
-          'createdAt',
-          isGreaterThanOrEqualTo:
-              Timestamp.fromDate(startDate),
-        );
-      }
-
-      if (endDate != null) {
-        final endOfDay = DateTime(
-          endDate.year,
-          endDate.month,
-          endDate.day,
-          23,
-          59,
-          59,
-        );
-
-        query = query.where(
-          'createdAt',
-          isLessThanOrEqualTo:
-              Timestamp.fromDate(endOfDay),
-        );
-      }
-
-      if (lastDoc != null) {
-        query = query.startAfterDocument(
-          lastDoc,
-        );
-      }
-    }
-
-    try {
-      final snapshot = await query.get();
+      final snapshot =
+          await query
+              .where(
+                'phoneNumber',
+                isEqualTo:
+                    searchText.trim(),
+              )
+              .limit(limit)
+              .get();
 
       return snapshot.docs;
-    } catch (e) {
-      print('❌ Error fetching Users: $e');
-      rethrow;
     }
+
+    /// LOAD ALL USERS
+    final snapshot =
+        await query.get();
+
+    final docs =
+        snapshot.docs.toList();
+
+    /// SORT USING createdAt OR created_time
+    docs.sort((a, b) {
+      final aData =
+          a.data()
+              as Map<String, dynamic>;
+
+      final bData =
+          b.data()
+              as Map<String, dynamic>;
+
+      final aDate =
+          (aData['createdAt']
+                      as Timestamp?) ??
+              (aData['created_time']
+                  as Timestamp?);
+
+      final bDate =
+          (bData['createdAt']
+                      as Timestamp?) ??
+              (bData['created_time']
+                  as Timestamp?);
+
+      final aMillis =
+          aDate?.millisecondsSinceEpoch ??
+              0;
+
+      final bMillis =
+          bDate?.millisecondsSinceEpoch ??
+              0;
+
+      return bMillis.compareTo(
+          aMillis);
+    });
+
+    /// DATE FILTER
+    List<QueryDocumentSnapshot>
+        filteredDocs = docs;
+
+    if (startDate != null) {
+      filteredDocs =
+          filteredDocs.where((doc) {
+        final data =
+            doc.data()
+                as Map<String, dynamic>;
+
+        final ts =
+            (data['createdAt']
+                        as Timestamp?) ??
+                (data['created_time']
+                    as Timestamp?);
+
+        if (ts == null) return false;
+
+        return ts
+            .toDate()
+            .isAfter(
+              startDate.subtract(
+                const Duration(
+                    seconds: 1),
+              ),
+            );
+      }).toList();
+    }
+
+    if (endDate != null) {
+      final endOfDay =
+          DateTime(
+        endDate.year,
+        endDate.month,
+        endDate.day,
+        23,
+        59,
+        59,
+      );
+
+      filteredDocs =
+          filteredDocs.where((doc) {
+        final data =
+            doc.data()
+                as Map<String, dynamic>;
+
+        final ts =
+            (data['createdAt']
+                        as Timestamp?) ??
+                (data['created_time']
+                    as Timestamp?);
+
+        if (ts == null) return false;
+
+        return ts
+            .toDate()
+            .isBefore(
+              endOfDay.add(
+                const Duration(
+                    seconds: 1),
+              ),
+            );
+      }).toList();
+    }
+
+    /// MANUAL PAGINATION
+    int startIndex = 0;
+
+    if (lastDoc != null) {
+      startIndex =
+          filteredDocs.indexWhere(
+                (d) =>
+                    d.id ==
+                    lastDoc.id,
+              ) +
+              1;
+
+      if (startIndex < 0) {
+        startIndex = 0;
+      }
+    }
+
+    final endIndex =
+        (startIndex + limit)
+            .clamp(
+      0,
+      filteredDocs.length,
+    );
+
+    return filteredDocs.sublist(
+      startIndex,
+      endIndex,
+    );
+  } catch (e) {
+    print(
+      '❌ Error fetching Users: $e',
+    );
+    rethrow;
   }
+}
 
   /// ================= COUPONS =================
 
@@ -223,5 +325,207 @@ Future<void> removeInfluencer(
 
     rethrow;
   }
+}
+
+Future<List<RewardWithdrawal>>
+    fetchRewardWithdrawals() async {
+
+  print(
+    '📥 Loading reward withdrawals...',
+  );
+
+  final snap =
+      await FirebaseFirestore.instance
+          .collection('rewardWithdrawals')
+          .get();
+
+  print(
+    '📊 Docs Found: ${snap.docs.length}',
+  );
+
+  final List<RewardWithdrawal>
+      withdrawals = [];
+
+  for (final doc in snap.docs) {
+
+    final data =
+        doc.data();
+
+    final uid =
+        data['uid'] ?? '';
+
+    print(
+      '🔍 Looking up user: $uid',
+    );
+
+    String customerName = '';
+    String phoneNumber = '';
+
+    try {
+
+      final userSnap =
+          await FirebaseFirestore
+              .instance
+              .collection('Users')
+              .doc(uid)
+              .get();
+
+      if (userSnap.exists) {
+
+        final userData =
+            userSnap.data()!;
+
+        customerName =
+            userData['full_name'] ??
+                '';
+
+        phoneNumber =
+            userData['phone_number']
+                    ?.toString() ??
+                '';
+
+        print(
+          '👤 User Found: $customerName ($phoneNumber)',
+        );
+      }
+
+    } catch (e) {
+
+      print(
+        '❌ User Lookup Failed: $uid',
+      );
+
+      print(e);
+    }
+
+    withdrawals.add(
+      RewardWithdrawal(
+        id: doc.id,
+
+        uid: uid,
+
+        customerName:
+            customerName,
+
+        phoneNumber:
+            phoneNumber,
+
+        amount:
+            ((data['amount'] ?? 0)
+                    as num)
+                .toDouble(),
+
+        upiId:
+            data['upiId'] ?? '',
+
+        status:
+            data['status'] ??
+                'pending',
+
+        createdAt:
+            (data['createdAt']
+                    as Timestamp?)
+                ?.toDate(),
+
+        approvedAt:
+            (data['approvedAt']
+                    as Timestamp?)
+                ?.toDate(),
+      ),
+    );
+  }
+
+  print(
+    '✅ Parsed Withdrawals: ${withdrawals.length}',
+  );
+
+  return withdrawals;
+}
+
+Future<void> approveRewardWithdrawal(
+  String withdrawalId,
+) async {
+
+  final db = FirebaseFirestore.instance;
+
+  await db.runTransaction((tx) async {
+
+    final withdrawalRef =
+        db.collection('rewardWithdrawals')
+            .doc(withdrawalId);
+
+    final withdrawalSnap =
+        await tx.get(withdrawalRef);
+
+    if (!withdrawalSnap.exists) {
+      throw Exception(
+        'Withdrawal not found',
+      );
+    }
+
+    final withdrawalData =
+        withdrawalSnap.data()!;
+
+    final uid =
+        withdrawalData['uid'];
+
+    /// Update withdrawal request
+    tx.update(
+      withdrawalRef,
+      {
+        'status': 'approved',
+        'approvedAt':
+            FieldValue.serverTimestamp(),
+      },
+    );
+
+    /// Find matching wallet transaction
+    final walletTxQuery =
+        await db
+            .collection('Users')
+            .doc(uid)
+            .collection(
+              'walletTransactions',
+            )
+            .where(
+              'withdrawalId',
+              isEqualTo: withdrawalId,
+            )
+            .limit(1)
+            .get();
+
+    if (walletTxQuery.docs.isNotEmpty) {
+
+      final walletTxRef =
+          walletTxQuery.docs.first.reference;
+
+      tx.update(
+        walletTxRef,
+        {
+          'status': 'approved',
+          'approvedAt':
+              FieldValue.serverTimestamp(),
+        },
+      );
+    }
+  });
+}
+
+Future<void> rejectRewardWithdrawal(
+  String id,
+) async {
+
+  await FirebaseFirestore.instance
+      .collection(
+        'rewardWithdrawals',
+      )
+      .doc(id)
+      .update({
+
+    'status': 'rejected',
+
+    'rejectedAt':
+        FieldValue.serverTimestamp(),
+  });
 }
 }

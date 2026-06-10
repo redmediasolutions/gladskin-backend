@@ -99,6 +99,16 @@ class AdminSidebar extends StatelessWidget {
                   icon: Icons.campaign_outlined,
                   title: "Influencers",
                 ),
+
+                  _navItem(
+
+    index: 3,
+
+    icon: Icons.payments_outlined,
+
+    title: "Reward Withdrawals",
+
+  ),
               ],
             ),
           ),

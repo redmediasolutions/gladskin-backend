@@ -10,6 +10,7 @@ import 'package:gladskin_backend/screens/coupons/influencers/influencers_list.da
 import 'package:gladskin_backend/screens/customer_rewards_screen.dart';
 import 'package:gladskin_backend/screens/customers_screen.dart';
 import 'package:gladskin_backend/screens/login_screen.dart';
+import 'package:gladskin_backend/screens/reward_withdrawlsscreen.dart';
 import 'package:go_router/go_router.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey =
@@ -125,6 +126,16 @@ final GoRouter appRouter = GoRouter(
             );
           },
         ),
+
+        GoRoute(
+
+  path: '/reward-withdrawals',
+
+  builder: (context, state) =>
+
+      const RewardWithdrawalsPage(),
+
+),
 
         /// INFLUENCERS
         GoRoute(

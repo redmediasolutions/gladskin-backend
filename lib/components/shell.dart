@@ -12,7 +12,9 @@ class AdminShell extends StatelessWidget {
   });
 
   int _getSelectedIndex(BuildContext context) {
-    final location = GoRouterState.of(context).matchedLocation;
+    final location =
+        GoRouterState.of(context)
+            .matchedLocation;
 
     if (location.startsWith('/customers')) {
       return 0;
@@ -26,38 +28,64 @@ class AdminShell extends StatelessWidget {
       return 2;
     }
 
+    if (location.startsWith('/reward-withdrawals')) {
+      return 3;
+    }
+
     return 0;
   }
 
   @override
   Widget build(BuildContext context) {
-    final selectedIndex = _getSelectedIndex(context);
+    final selectedIndex =
+        _getSelectedIndex(context);
 
     return Scaffold(
       body: Row(
         children: [
+
           /// SIDEBAR
           AdminSidebar(
-            selectedIndex: selectedIndex,
+            selectedIndex:
+                selectedIndex,
 
-            onItemSelected: (index) {
+            onItemSelected: (
+              index,
+            ) {
+
               switch (index) {
+
                 case 0:
-                  context.go('/customers');
+                  context.go(
+                    '/customers',
+                  );
                   break;
 
                 case 1:
-                  context.go('/coupons');
+                  context.go(
+                    '/coupons',
+                  );
                   break;
 
                 case 2:
-                  context.go('/influencers');
+                  context.go(
+                    '/influencers',
+                  );
+                  break;
+
+                case 3:
+                  context.go(
+                    '/reward-withdrawals',
+                  );
                   break;
               }
             },
 
             onLogout: () async {
-              await FirebaseAuth.instance.signOut();
+
+              await FirebaseAuth
+                  .instance
+                  .signOut();
             },
           ),
 
