@@ -478,6 +478,7 @@ Future<void> approveRewardWithdrawal(
             FieldValue.serverTimestamp(),
       },
     );
+    //TEST
 
     /// Find matching wallet transaction
     final walletTxQuery =
