@@ -5,11 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:gladskin_backend/components/shell.dart';
 import 'package:gladskin_backend/screens/coupons/coupons_create.dart';
 import 'package:gladskin_backend/screens/coupons/coupons_list.dart';
-import 'package:gladskin_backend/screens/coupons/influencers/influencers_create.dart';
-import 'package:gladskin_backend/screens/coupons/influencers/influencers_list.dart';
+import 'package:gladskin_backend/screens/influencers/influencers_create.dart';
+import 'package:gladskin_backend/screens/influencers/influencers_list.dart';
 import 'package:gladskin_backend/screens/customer_rewards_screen.dart';
 import 'package:gladskin_backend/screens/customers_screen.dart';
 import 'package:gladskin_backend/screens/login_screen.dart';
+import 'package:gladskin_backend/screens/notifications/notificationslist.dart';
 import 'package:gladskin_backend/screens/reward_withdrawlsscreen.dart';
 import 'package:go_router/go_router.dart';
 
@@ -114,6 +115,18 @@ final GoRouter appRouter = GoRouter(
             );
           },
         ),
+
+        GoRoute(
+
+  path: '/notifications',
+
+  name: 'notifications',
+
+  builder: (context, state) =>
+
+      const NotificationsPage(),
+
+),
 
         /// CREATE COUPON
         GoRoute(

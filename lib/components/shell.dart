@@ -32,6 +32,10 @@ class AdminShell extends StatelessWidget {
       return 3;
     }
 
+    if (location.startsWith('/notifications')) {
+      return 4;
+    }
+
     return 0;
   }
 
@@ -76,6 +80,12 @@ class AdminShell extends StatelessWidget {
                 case 3:
                   context.go(
                     '/reward-withdrawals',
+                  );
+                  break;
+
+                case 4:
+                  context.go(
+                    '/notifications',
                   );
                   break;
               }

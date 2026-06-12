@@ -109,6 +109,17 @@ class AdminSidebar extends StatelessWidget {
     title: "Reward Withdrawals",
 
   ),
+
+
+                  _navItem(
+
+    index: 4,
+
+    icon: Icons.notifications_outlined,
+
+    title: "Notifications",
+
+  ),
               ],
             ),
           ),

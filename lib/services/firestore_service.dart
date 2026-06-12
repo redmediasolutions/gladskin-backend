@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gladskin_backend/models/coupon_model.dart';
 import 'package:gladskin_backend/models/influencer_model.dart';
+import 'package:gladskin_backend/models/notification_model.dart';
 import 'package:gladskin_backend/models/reward_withdrawal.dart';
 
 class FirestoreService {
@@ -528,5 +529,123 @@ Future<void> rejectRewardWithdrawal(
     'rejectedAt':
         FieldValue.serverTimestamp(),
   });
+}
+
+// ==========================================
+// PUSH NOTIFICATIONS
+// ==========================================
+
+Future<void> createNotification({
+  required String title,
+  required String body,
+  String sendType = "instant",
+  DateTime? scheduledAt,
+  String topic = "all",
+  String target = "topic",
+  String? imageUrl,
+}) async {
+  try {
+    await _db
+        .collection('notifications')
+        .add({
+      'title': title,
+      'body': body,
+      'imageUrl': imageUrl ?? '',
+      'target': target,
+      'topic': topic,
+      'status': 'pending',
+      'createdAt':
+          FieldValue.serverTimestamp(),
+    });
+
+    print(
+      '✅ Notification queued',
+    );
+  } catch (e) {
+    print(
+      '❌ Error creating notification: $e',
+    );
+    rethrow;
+  }
+}
+
+Future<List<NotificationModel>>
+    fetchNotifications({
+  QueryDocumentSnapshot? lastDoc,
+  int limit = 20,
+}) async {
+  try {
+    Query query = _db
+        .collection('notifications')
+        .orderBy(
+          'createdAt',
+          descending: true,
+        )
+        .limit(limit);
+
+    if (lastDoc != null) {
+      query = query.startAfterDocument(
+        lastDoc,
+      );
+    }
+
+    final snapshot =
+        await query.get();
+
+    return snapshot.docs
+        .map(
+          (doc) =>
+              NotificationModel
+                  .fromFirestore(
+            doc
+                as QueryDocumentSnapshot,
+          ),
+        )
+        .toList();
+  } catch (e) {
+    print(
+      '❌ Error fetching notifications: $e',
+    );
+    rethrow;
+  }
+}
+
+Future<void> deleteNotification(
+  String notificationId,
+) async {
+  try {
+    await _db
+        .collection('notifications')
+        .doc(notificationId)
+        .delete();
+  } catch (e) {
+    print(
+      '❌ Error deleting notification: $e',
+    );
+    rethrow;
+  }
+}
+
+Stream<List<NotificationModel>>
+    notificationsStream() {
+  return _db
+      .collection('notifications')
+      .orderBy(
+        'createdAt',
+        descending: true,
+      )
+      .snapshots()
+      .map(
+        (snapshot) =>
+            snapshot.docs
+                .map(
+                  (doc) =>
+                      NotificationModel
+                          .fromFirestore(
+                    doc,
+                  ),
+                )
+                .toList(),
+      );
 }
 }
