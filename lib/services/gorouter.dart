@@ -11,6 +11,8 @@ import 'package:gladskin_backend/screens/customer_rewards_screen.dart';
 import 'package:gladskin_backend/screens/customers_screen.dart';
 import 'package:gladskin_backend/screens/login_screen.dart';
 import 'package:gladskin_backend/screens/notifications/notificationslist.dart';
+import 'package:gladskin_backend/screens/orders/orders_details.dart';
+import 'package:gladskin_backend/screens/orders/orders_list.dart';
 import 'package:gladskin_backend/screens/reward_withdrawlsscreen.dart';
 import 'package:go_router/go_router.dart';
 
@@ -75,6 +77,31 @@ final GoRouter appRouter = GoRouter(
             );
           },
         ),
+
+        /// ORDERS
+GoRoute(
+  path: '/orders',
+  pageBuilder: (context, state) {
+    return const NoTransitionPage(
+      child: OrdersList(),
+    );
+  },
+),
+
+/// ORDER DETAILS
+GoRoute(
+  path: '/orders/:orderId',
+  pageBuilder: (context, state) {
+    final orderId =
+        state.pathParameters['orderId']!;
+
+    return NoTransitionPage(
+      child: OrderDetails(
+        orderId: orderId,
+      ),
+    );
+  },
+),
 
         /// CUSTOMER REWARDS
         GoRoute(

@@ -20,20 +20,24 @@ class AdminShell extends StatelessWidget {
       return 0;
     }
 
-    if (location.startsWith('/coupons')) {
+    if (location.startsWith('/orders')) {
       return 1;
     }
 
-    if (location.startsWith('/influencers')) {
+    if (location.startsWith('/coupons')) {
       return 2;
     }
 
-    if (location.startsWith('/reward-withdrawals')) {
+    if (location.startsWith('/influencers')) {
       return 3;
     }
 
-    if (location.startsWith('/notifications')) {
+    if (location.startsWith('/reward-withdrawals')) {
       return 4;
+    }
+
+    if (location.startsWith('/notifications')) {
+      return 5;
     }
 
     return 0;
@@ -47,7 +51,6 @@ class AdminShell extends StatelessWidget {
     return Scaffold(
       body: Row(
         children: [
-
           /// SIDEBAR
           AdminSidebar(
             selectedIndex:
@@ -56,9 +59,7 @@ class AdminShell extends StatelessWidget {
             onItemSelected: (
               index,
             ) {
-
               switch (index) {
-
                 case 0:
                   context.go(
                     '/customers',
@@ -67,23 +68,29 @@ class AdminShell extends StatelessWidget {
 
                 case 1:
                   context.go(
-                    '/coupons',
+                    '/orders',
                   );
                   break;
 
                 case 2:
                   context.go(
-                    '/influencers',
+                    '/coupons',
                   );
                   break;
 
                 case 3:
                   context.go(
-                    '/reward-withdrawals',
+                    '/influencers',
                   );
                   break;
 
                 case 4:
+                  context.go(
+                    '/reward-withdrawals',
+                  );
+                  break;
+
+                case 5:
                   context.go(
                     '/notifications',
                   );
@@ -92,7 +99,6 @@ class AdminShell extends StatelessWidget {
             },
 
             onLogout: () async {
-
               await FirebaseAuth
                   .instance
                   .signOut();
