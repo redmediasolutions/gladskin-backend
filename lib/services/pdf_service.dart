@@ -53,64 +53,125 @@ pw.SizedBox(height: 40),
   }
 
   static pw.Widget _buildHeader(
-    OrderModel order,
-  ) {
-    return pw.Row(
+  OrderModel order,
+) {
+  return pw.Container(
+    padding: const pw.EdgeInsets.only(bottom: 20),
+    child: pw.Row(
       crossAxisAlignment:
           pw.CrossAxisAlignment.start,
       mainAxisAlignment:
           pw.MainAxisAlignment.spaceBetween,
       children: [
-        pw.Column(
-          crossAxisAlignment:
-              pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(
-              "GladSkin",
-              style: pw.TextStyle(
-                fontSize: 28,
-                fontWeight:
-                    pw.FontWeight.bold,
+        /// ============================
+        /// COMPANY DETAILS
+        /// ============================
+
+        pw.Expanded(
+          flex: 3,
+          child: pw.Column(
+            crossAxisAlignment:
+                pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                "GladSkin",
+                style: pw.TextStyle(
+                  fontSize: 24,
+                  fontWeight:
+                      pw.FontWeight.bold,
+                ),
               ),
-            ),
-            pw.SizedBox(height: 6),
-            pw.Text(
-              "TAX INVOICE",
-              style: pw.TextStyle(
-                fontSize: 14,
-                fontWeight:
-                    pw.FontWeight.bold,
+
+              pw.SizedBox(height: 8),
+
+              pw.Text(
+                "Vishwas Heights, 3rd Floor",
               ),
-            ),
-          ],
+
+              pw.Text(
+                "Mangalore 575002",
+              ),
+
+              pw.Text(
+                "Karnataka, India",
+              ),
+
+              pw.Text(
+                "+91 90717 89436",
+              ),
+
+              pw.SizedBox(height: 8),
+
+              pw.Text(
+                "Customer ID: 1972657867",
+                style: pw.TextStyle(
+                  fontWeight:
+                      pw.FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
         ),
 
-        pw.Column(
-  crossAxisAlignment: pw.CrossAxisAlignment.end,
-  children: [
-    _pdfRow(
-      "Invoice No: ",
-      order.orderNumber.isNotEmpty
-          ? order.orderNumber
-          : order.wooOrderId.toString(),
-    ),
-    _pdfRow(
-      "Woo Order",
-      order.wooOrderId.toString(),
-    ),
-    _pdfRow(
-      "Status",
-      order.status,
-    ),
-    _pdfRow(
-      "Payment",
-      order.paymentMethod.toUpperCase(),
-    ),
-  ],
-),
+        /// ============================
+        /// TITLE
+        /// ============================
+
+        pw.Expanded(
+          flex: 2,
+          child: pw.Center(
+            child: pw.Text(
+              "TAX INVOICE",
+              style: pw.TextStyle(
+                fontSize: 16,
+                fontWeight:
+                    pw.FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+
+        /// ============================
+        /// ORDER INFO
+        /// ============================
+
+        pw.Expanded(
+          flex: 3,
+          child: pw.Column(
+            crossAxisAlignment:
+                pw.CrossAxisAlignment.end,
+            children: [
+              _pdfRow(
+                "Invoice No",
+                order.orderNumber.isNotEmpty
+                    ? order.orderNumber
+                    : order.wooOrderId
+                        .toString(),
+              ),
+
+              _pdfRow(
+                "Woo Order",
+                order.wooOrderId
+                    .toString(),
+              ),
+
+              _pdfRow(
+                "Status",
+                order.status,
+              ),
+
+              _pdfRow(
+                "Payment",
+                order.paymentMethod
+                    .toUpperCase(),
+              ),
+            ],
+          ),
+        ),
       ],
-    );
-  }
+    ),
+  );
+}
 
   static pw.Widget _buildCustomerInfo(
     OrderModel order,
@@ -199,22 +260,30 @@ pw.SizedBox(height: 40),
 ) {
   return pw.TableHelper.fromTextArray(
     border: pw.TableBorder.all(),
+
     headerStyle: pw.TextStyle(
-      fontWeight: pw.FontWeight.bold,
+      fontWeight:
+          pw.FontWeight.bold,
     ),
+
     headers: const [
       "Product",
-      "SKU",
       "Qty",
       "Price",
+      "GST",
       "Total",
     ],
+
     data: order.items.map((item) {
       return [
         item.name,
         item.quantity.toString(),
-        item.salePrice.toStringAsFixed(2),
-        item.lineTotal.toStringAsFixed(2),
+        item.salePrice
+            .toStringAsFixed(2),
+        item.lineTax
+            .toStringAsFixed(2),
+        item.lineTotal
+            .toStringAsFixed(2),
       ];
     }).toList(),
   );
@@ -234,12 +303,12 @@ pw.SizedBox(height: 40),
             order.subtotal.toStringAsFixed(2),
           ),
           _pdfRow(
-            "Shipping",
-            order.shipping.toStringAsFixed(2),
-          ),
-          _pdfRow(
             "Tax",
             order.tax.toStringAsFixed(2),
+          ),
+          _pdfRow(
+            "Shipping",
+            order.shipping.toStringAsFixed(2),
           ),
           _pdfRow(
             "Coupon",

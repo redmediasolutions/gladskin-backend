@@ -92,14 +92,16 @@ class TotalsCard extends StatelessWidget {
               order.subtotal,
             ),
 
-            _row(
-              "Shipping",
-              order.shipping,
-            ),
+          
 
             _row(
               "Tax",
               order.tax,
+            ),
+
+              _row(
+              "Shipping",
+              order.shipping,
             ),
 
             if (order.couponDiscount > 0)
@@ -120,13 +122,6 @@ class TotalsCard extends StatelessWidget {
               _row(
                 "COD Charge",
                 order.codCharge,
-              ),
-
-            if (order.rewardAmount > 0)
-              _row(
-                "Reward Amount",
-                order.rewardAmount,
-                color: Colors.blue,
               ),
 
             const Padding(

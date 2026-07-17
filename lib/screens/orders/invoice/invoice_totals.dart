@@ -42,12 +42,6 @@ class InvoiceTotals extends StatelessWidget {
                   currency.format(order.subtotal),
                 ),
 
-                if (order.shipping > 0)
-                  _row(
-                    "Shipping",
-                    currency.format(order.shipping),
-                  ),
-
                 if (order.tax > 0)
                   _row(
                     "GST",
@@ -71,8 +65,14 @@ class InvoiceTotals extends StatelessWidget {
                 if (order.rewardAmount > 0)
                   _row(
                     "Coupon Discount",
-                    "- ${currency.format(order.rewardAmount)}",
+                    "- ${currency.format(order.couponDiscount)}",
                     valueColor: Colors.green,
+                  ),
+                
+                if (order.shipping > 0)
+                  _row(
+                    "Shipping",
+                    currency.format(order.shipping),
                   ),
 
                 if (order.codCharge > 0)
