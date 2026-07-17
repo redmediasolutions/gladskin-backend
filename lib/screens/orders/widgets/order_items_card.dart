@@ -139,16 +139,6 @@ class OrderItemsCard extends StatelessWidget {
                                     height: 6,
                                   ),
 
-                                  Text(
-                                    "SKU: ${item.sku}",
-                                    style:
-                                        const TextStyle(
-                                      color:
-                                          Colors
-                                              .grey,
-                                    ),
-                                  ),
-
                                   const SizedBox(
                                     height: 4,
                                   ),
@@ -167,7 +157,7 @@ class OrderItemsCard extends StatelessWidget {
                                       .end,
                               children: [
                                 Text(
-                                  "₹${item.price.toStringAsFixed(2)}",
+                                  "₹${item.salePrice.toStringAsFixed(2)}",
                                   style:
                                       const TextStyle(
                                     fontWeight:
@@ -183,7 +173,7 @@ class OrderItemsCard extends StatelessWidget {
                                 ),
 
                                 Text(
-                                  "₹${item.total.toStringAsFixed(2)}",
+                                  "₹${item.lineSubtotal.toStringAsFixed(2)}",
                                   style:
                                       const TextStyle(
                                     color:

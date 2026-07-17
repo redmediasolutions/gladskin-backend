@@ -1,32 +1,47 @@
 class OrderItemModel {
   final int productId;
 
-  final int variationId;
-
   final String name;
-
-  final String sku;
-
-  final int quantity;
-
-  final double price;
-
-  final double subtotal;
-
-  final double total;
 
   final String image;
 
+  final String brand;
+
+  final String packing;
+
+  final int quantity;
+
+  final double mrp;
+
+  final double salePrice;
+
+  final double lineSubtotal;
+
+  final double lineTax;
+
+  final double lineTotal;
+
+  final double taxRate;
+
+  final String taxClass;
+
+  final String taxStatus;
+
   const OrderItemModel({
     required this.productId,
-    required this.variationId,
     required this.name,
-    required this.sku,
-    required this.quantity,
-    required this.price,
-    required this.subtotal,
-    required this.total,
     required this.image,
+    required this.brand,
+    required this.packing,
+    required this.quantity,
+    required this.mrp,
+    required this.salePrice,
+    required this.lineSubtotal,
+    required this.lineTax,
+    required this.lineTotal,
+    required this.taxRate,
+    required this.taxClass,
+    required this.taxStatus,
   });
 
   factory OrderItemModel.fromMap(
@@ -34,82 +49,148 @@ class OrderItemModel {
   ) {
     return OrderItemModel(
       productId:
-          map['productId'] ?? 0,
-
-      variationId:
-          map['variationId'] ?? 0,
+          map["productId"] ?? 0,
 
       name:
-          map['name']?.toString() ?? '',
-
-      sku:
-          map['sku']?.toString() ?? '',
-
-      quantity:
-          map['quantity'] ?? 0,
-
-      price:
-          (map['price'] ?? 0).toDouble(),
-
-      subtotal:
-          (map['subtotal'] ?? 0).toDouble(),
-
-      total:
-          (map['total'] ?? 0).toDouble(),
+          map["name"]?.toString() ??
+              "",
 
       image:
-          map['image']?.toString() ?? '',
+          map["image"]?.toString() ??
+              "",
+
+      brand:
+          map["brand"]?.toString() ??
+              "",
+
+      packing:
+          map["packing"]?.toString() ??
+              "",
+
+      quantity:
+          map["quantity"] ?? 0,
+
+      mrp:
+          (map["mrp"] ?? 0)
+              .toDouble(),
+
+      salePrice:
+          (map["salePrice"] ?? 0)
+              .toDouble(),
+
+      lineSubtotal:
+          (map["lineSubtotal"] ?? 0)
+              .toDouble(),
+
+      lineTax:
+          (map["lineTax"] ?? 0)
+              .toDouble(),
+
+      lineTotal:
+          (map["lineTotal"] ?? 0)
+              .toDouble(),
+
+      taxRate:
+          (map["taxRate"] ?? 0)
+              .toDouble(),
+
+      taxClass:
+          map["taxClass"]
+                  ?.toString() ??
+              "",
+
+      taxStatus:
+          map["taxStatus"]
+                  ?.toString() ??
+              "",
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'productId': productId,
-      'variationId': variationId,
-      'name': name,
-      'sku': sku,
-      'quantity': quantity,
-      'price': price,
-      'subtotal': subtotal,
-      'total': total,
-      'image': image,
+      "productId": productId,
+      "name": name,
+      "image": image,
+      "brand": brand,
+      "packing": packing,
+      "quantity": quantity,
+      "mrp": mrp,
+      "salePrice": salePrice,
+      "lineSubtotal": lineSubtotal,
+      "lineTax": lineTax,
+      "lineTotal": lineTotal,
+      "taxRate": taxRate,
+      "taxClass": taxClass,
+      "taxStatus": taxStatus,
     };
   }
 
   OrderItemModel copyWith({
     int? productId,
-    int? variationId,
     String? name,
-    String? sku,
-    int? quantity,
-    double? price,
-    double? subtotal,
-    double? total,
     String? image,
+    String? brand,
+    String? packing,
+    int? quantity,
+    double? mrp,
+    double? salePrice,
+    double? lineSubtotal,
+    double? lineTax,
+    double? lineTotal,
+    double? taxRate,
+    String? taxClass,
+    String? taxStatus,
   }) {
     return OrderItemModel(
       productId:
-          productId ?? this.productId,
+          productId ??
+              this.productId,
 
-      variationId:
-          variationId ??
-              this.variationId,
+      name:
+          name ?? this.name,
 
-      name: name ?? this.name,
+      image:
+          image ?? this.image,
 
-      sku: sku ?? this.sku,
+      brand:
+          brand ?? this.brand,
+
+      packing:
+          packing ?? this.packing,
 
       quantity:
           quantity ?? this.quantity,
 
-      price: price ?? this.price,
+      mrp:
+          mrp ?? this.mrp,
 
-      subtotal:
-          subtotal ?? this.subtotal,
+      salePrice:
+          salePrice ??
+              this.salePrice,
 
-      total: total ?? this.total,
+      lineSubtotal:
+          lineSubtotal ??
+              this.lineSubtotal,
 
-      image: image ?? this.image,
+      lineTax:
+          lineTax ??
+              this.lineTax,
+
+      lineTotal:
+          lineTotal ??
+              this.lineTotal,
+
+      taxRate:
+          taxRate ??
+              this.taxRate,
+
+      taxClass:
+          taxClass ??
+              this.taxClass,
+
+      taxStatus:
+          taxStatus ??
+              this.taxStatus,
     );
   }
 }

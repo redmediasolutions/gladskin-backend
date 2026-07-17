@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:gladskin_backend/models/status_history_model.dart';
+import 'package:gladskin_backend/models/user_model.dart';
 
 import '../models/order_model.dart';
 
@@ -281,4 +282,19 @@ class OrderService {
   ) async {
     // TODO
   }
+  Future<UserModel?> fetchUser(
+  String uid,
+) async {
+  final doc =
+      await FirebaseFirestore.instance
+          .collection("Users")
+          .doc(uid)
+          .get();
+
+  if (!doc.exists) {
+    return null;
+  }
+
+  return UserModel.fromFirestore(doc);
+}
 }
