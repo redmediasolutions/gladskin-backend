@@ -75,115 +75,71 @@ class _CreateInfluencerScreenState
 
   Future<void> _searchUser() async {
     try {
-      print(
-        "🔍 Starting user search...",
-      );
+      print("🔍 Starting user search...");
 
-      final phone =
-          _searchController.text
-              .trim();
+      // 1. Get raw input, trim spaces
+      String inputPhone = _searchController.text.trim();
 
-      print(
-        "📱 Searching phone: $phone",
-      );
-
-      if (phone.isEmpty) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Enter phone number",
-            ),
-          ),
+      if (inputPhone.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Enter phone number")),
         );
-
         return;
       }
 
-      final result =
-          await _db
-              .collection('Users')
-              .where(
-                'phone_number',
-                isEqualTo: phone,
-              )
-              .limit(1)
-              .get();
+      // 2. Normalize input: remove spaces, hyphens, or brackets
+      inputPhone = inputPhone.replaceAll(RegExp(r'[\s\-()]'), '');
 
-      print(
-        "📄 Documents found: ${result.docs.length}",
-      );
-
-      if (result.docs.isEmpty) {
-        throw Exception(
-          "No user found",
-        );
+      // 3. Smart country code appending
+      String searchPhone;
+      if (inputPhone.startsWith('+91')) {
+        searchPhone = inputPhone;
+      } else if (inputPhone.startsWith('91') && inputPhone.length > 10) {
+        // Handles cases where user typed 919876543210 without the '+'
+        searchPhone = '+$inputPhone';
+      } else {
+        // Handles standard 10 digit input like 9876543210
+        searchPhone = '+91$inputPhone';
       }
 
-      final user =
-          result.docs.first;
+      print("📱 Original input: ${_searchController.text.trim()} -> Formatted search phone: $searchPhone");
 
-      final data =
-          user.data()
-              as Map<String, dynamic>;
+      final result = await _db
+          .collection('Users')
+          .where('phone_number', isEqualTo: searchPhone)
+          .limit(1)
+          .get();
+
+      print("📄 Documents found: ${result.docs.length}");
+
+      if (result.docs.isEmpty) {
+        throw Exception("No user found with number $searchPhone");
+      }
+
+      final user = result.docs.first;
+      final data = user.data();
 
       setState(() {
         _selectedUser = user;
-
-        _selectedUserData =
-            data;
+        _selectedUserData = data;
 
         /// PREFILL
-        _nameController.text =
-            data['full_name'] ??
-                '';
-
-        _locationController
-                .text =
-            data['location'] ??
-                '';
-
-        _instagramController
-                .text =
-            data['influencerData']
-                    ?[
-                    'instagramHandle'] ??
-                '';
-
-        _youtubeController
-                .text =
-            data['influencerData']
-                    ?[
-                    'youtubeChannel'] ??
-                '';
-
-        _bioController.text =
-            data['influencerData']
-                    ?['bio'] ??
-                '';
+        _nameController.text = data['full_name'] ?? '';
+        _locationController.text = data['location'] ?? '';
+        _instagramController.text = data['influencerData']?['instagramHandle'] ?? '';
+        _youtubeController.text = data['influencerData']?['youtubeChannel'] ?? '';
+        _bioController.text = data['influencerData']?['bio'] ?? '';
       });
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            "User found",
-          ),
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("User found")),
       );
     } catch (e) {
-      print(
-        "❌ SEARCH USER ERROR: $e",
-      );
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content:
-              Text(e.toString()),
-        ),
+      print("❌ SEARCH USER ERROR: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
       );
     }
   }
@@ -200,23 +156,28 @@ class _CreateInfluencerScreenState
     }
 
     if (_selectedUser == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Select a user first",
-          ),
-        ),
-      );
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text("Select a user first"),
+    ),
+  );
+  return;
+}
 
-      return;
-    }
+if (_selectedUserData?['isInfluencer'] == true) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text("This user is already an influencer."),
+    ),
+  );
+  return;
+}
 
-    setState(() {
-      _isLoading = true;
-    });
+setState(() {
+  _isLoading = true;
+});
 
-    try {
+try {
       final userId =
           _selectedUser!.id;
 
@@ -228,11 +189,6 @@ class _CreateInfluencerScreenState
           _locationController
               .text
               .trim();
-
-      final phone =
-          _selectedUserData?[
-                  'phone_number'] ??
-              '';
 
       /// =========================================
       /// GENERATE REFERRAL CODE
@@ -256,35 +212,43 @@ class _CreateInfluencerScreenState
                 )
               : cleanName;
 
-      final cleanPhone =
-          phone
-              .toString()
-              .replaceAll(
-                RegExp(r'\D'),
-                '',
-              );
-
-      final phoneLast4 =
-          cleanPhone.length >= 4
-              ? cleanPhone.substring(
-                  cleanPhone.length -
-                      4,
-                )
-              : cleanPhone;
-
-      final timestamp =
-          DateTime.now()
-              .millisecondsSinceEpoch
-              .toString()
-              .substring(8);
-
       /// REFERRAL CODE
-      final referralCode =
-          "$shortName$phoneLast4$timestamp";
+      /// =========================================
+/// GENERATE UNIQUE COUPON / REFERRAL CODE
+/// =========================================
 
-      /// COUPON CODE
-      final couponCode =
-          "${shortName}10";
+
+String baseCode = "${shortName}10";
+String uniqueCode = baseCode;
+
+int counter = 2;
+
+while (true) {
+  final userExists = await _db
+      .collection("Users")
+      .where("referralCode", isEqualTo: uniqueCode)
+      .limit(1)
+      .get();
+
+  final couponExists = await _db
+      .collection("Coupons")
+      .where("code", isEqualTo: uniqueCode)
+      .limit(1)
+      .get();
+
+  if (userExists.docs.isEmpty &&
+      couponExists.docs.isEmpty) {
+    break;
+  }
+
+  uniqueCode = "$baseCode$counter";
+  counter++;
+}
+
+final couponCode = uniqueCode;
+
+/// Referral code is the same as coupon code
+final referralCode = uniqueCode;
 
       print(
         "🎯 Referral Code: $referralCode",
@@ -658,22 +622,16 @@ class _CreateInfluencerScreenState
                           ),
 
                           child: Text(
-                            (_selectedUserData![
-                                            'full_name'] ??
-                                        'U')
-                                    .toString()[0]
-                                    .toUpperCase(),
+  (() {
+    final name = (_selectedUserData?['full_name'] ?? '')
+        .toString()
+        .trim();
 
-                            style:
-                                const TextStyle(
-                              color:
-                                  Colors.white,
-
-                              fontWeight:
-                                  FontWeight
-                                      .w700,
-                            ),
-                          ),
+    return name.isEmpty
+        ? 'U'
+        : name.characters.first.toUpperCase();
+  })(),
+),
                         ),
 
                         const SizedBox(
