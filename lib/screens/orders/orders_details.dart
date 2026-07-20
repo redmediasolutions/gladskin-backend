@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:gladskin_backend/models/order_totals_model.dart';
+import 'package:gladskin_backend/models/tracking_model.dart';
 import 'package:gladskin_backend/models/user_model.dart';
 import 'package:gladskin_backend/screens/orders/invoice/invoice_page.dart';
 import 'package:gladskin_backend/screens/orders/invoice/invoice_sheet.dart';
@@ -37,8 +38,18 @@ class _OrderDetailsState
   final OrderService _service =
       OrderService();
 
+  final TextEditingController _trackingController =
+    TextEditingController();
+
+final TextEditingController _notesController =
+    TextEditingController();
+
+String? _selectedCourier;
+
   late Future<OrderModel?> _future;
 late Future<UserModel?> _userFuture;
+String? _selectedStatus;
+bool _updatingStatus = false;
 
   @override
   void initState() {
@@ -51,11 +62,55 @@ late Future<UserModel?> _userFuture;
     _userFuture = _future.then((order) {
   if (order == null) return null;
 
+  
   return _service.fetchUser(
     order.uid,
   );
+  
 });
   }
+
+Future<void> _updateOrderStatus(OrderModel order) async {
+  if (_selectedStatus == null ||
+      _selectedStatus == order.status) {
+    return;
+  }
+
+  setState(() {
+    _updatingStatus = true;
+  });
+
+  try {
+    // Skip WooCommerce for shipped
+    if (_selectedStatus != "shipped") {
+      await _service.updateWooCommerceOrderStatus(
+        wooOrderId: order.wooOrderId,
+        status: _selectedStatus!,
+      );
+    }
+
+    await _service.updateFirestoreOrderStatus(
+      orderId: widget.orderId,
+      status: _selectedStatus!,
+    );
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Order status updated successfully."),
+      ),
+    );
+
+    await _refresh();
+  } finally {
+    if (mounted) {
+      setState(() {
+        _updatingStatus = false;
+      });
+    }
+  }
+}
 
 Future<void> _refresh() async {
   setState(() {
@@ -118,6 +173,19 @@ Widget build(BuildContext context) {
         }
 
         final order = snapshot.data;
+        _selectedStatus ??= order?.status;
+
+        _selectedCourier ??= order?.tracking?.courier;
+
+if (_trackingController.text.isEmpty) {
+  _trackingController.text =
+      order?.tracking?.trackingNumber ?? "";
+}
+
+if (_notesController.text.isEmpty) {
+  _notesController.text =
+      order?.tracking?.notes ?? "";
+}
 
         if (order == null) {
           return const Center(
@@ -181,9 +249,54 @@ Row(
 
     Row(
       children: [
-        OrderStatusChip(
-          status: order.status,
-        ),
+        SizedBox(
+  width: 180,
+  child: DropdownButtonFormField<String>(
+    value: _selectedStatus,
+    decoration: const InputDecoration(
+      labelText: "Status",
+      border: OutlineInputBorder(),
+      isDense: true,
+    ),
+    items: const [
+  "pending",
+  "processing",
+  "on-hold",
+  "shipped",
+  "completed",
+  "cancelled",
+  "refunded",
+  "failed",
+].map((status) {
+  return DropdownMenuItem(
+    value: status,
+    child: Text(status),
+  );
+}).toList(),
+    onChanged: (value) {
+      setState(() {
+        _selectedStatus = value;
+      });
+    },
+  ),
+),
+
+ElevatedButton.icon(
+  onPressed: _updatingStatus
+      ? null
+      : () => _updateOrderStatus(order),
+  icon: _updatingStatus
+      ? const SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white,
+          ),
+        )
+      : const Icon(Icons.save),
+  label: const Text("Update"),
+),
 
         const SizedBox(width: 12),
 
@@ -207,6 +320,9 @@ Row(
         ),
 
         const SizedBox(width: 12),
+
+
+
 
         ElevatedButton.icon(
           onPressed: _refresh,
@@ -296,6 +412,113 @@ FutureBuilder<UserModel?>(
   },
 ),
 const SizedBox(height: 20),
+
+const SizedBox(height: 20),
+
+Card(
+  child: Padding(
+    padding: const EdgeInsets.all(20),
+    child: Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Fulfillment",
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        DropdownButtonFormField<String>(
+          value: _selectedCourier,
+          decoration: const InputDecoration(
+            labelText: "Courier",
+          ),
+          items: const [
+            "Delhivery",
+            "Blue Dart",
+            "DTDC",
+            "XpressBees",
+            "Ekart",
+            "Speed Post",
+          ].map((e) {
+            return DropdownMenuItem(
+              value: e,
+              child: Text(e),
+            );
+          }).toList(),
+          onChanged: (v) {
+            setState(() {
+              _selectedCourier = v;
+            });
+          },
+        ),
+
+        const SizedBox(height: 16),
+
+        TextField(
+          controller: _trackingController,
+          decoration: const InputDecoration(
+            labelText: "Tracking Number",
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        TextField(
+          controller: _notesController,
+          maxLines: 2,
+          decoration: const InputDecoration(
+            labelText: "Notes",
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            onPressed: () async {
+           // Update status if changed
+if (_selectedStatus != order.status) {
+  // Skip WooCommerce for shipped
+  if (_selectedStatus != "shipped") {
+    await _service.updateWooCommerceOrderStatus(
+      wooOrderId: order.wooOrderId,
+      status: _selectedStatus!,
+    );
+  }
+
+  // Always update Firestore
+  await _service.updateFirestoreOrderStatus(
+    orderId: widget.orderId,
+    status: _selectedStatus!,
+  );
+}
+
+// Save tracking information
+await _service.updateTrackingInfo(
+  orderId: widget.orderId,
+  tracking: TrackingInfo(
+    courier: _selectedCourier ?? "",
+    trackingNumber: _trackingController.text.trim(),
+    notes: _notesController.text.trim(),
+  ),
+);
+
+await _refresh();
+            },
+            icon: const Icon(Icons.local_shipping),
+            label: const Text("Save"),
+          ),
+        ),
+      ],
+    ),
+  ),
+),
 
 
 /// ORDER ITEMS

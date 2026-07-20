@@ -1,9 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:gladskin_backend/models/status_history_model.dart';
+import 'package:gladskin_backend/models/tracking_model.dart';
 import 'package:gladskin_backend/models/user_model.dart';
+import 'package:gladskin_backend/services/config.dart';
 
 import '../models/order_model.dart';
+
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class OrderService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -149,37 +154,54 @@ class OrderService {
   /// UPDATE STATUS
   /// ============================================================
 
-  Future<void> updateOrderStatus({
+  Future<void> updateFirestoreOrderStatus({
   required String orderId,
   required String status,
-  String performedBy = "Admin",
-  String description = "",
 }) async {
-  try {
-    await _orders.doc(orderId).update({
-      'status': status,
-      'updatedAt':
-          FieldValue.serverTimestamp(),
+  await FirebaseFirestore.instance
+      .collection("Orders")
+      .doc(orderId)
+      .update({
+    "status": status,
+    "wooStatus": status,
+    "updatedAt": FieldValue.serverTimestamp(),
+    "wooUpdatedAt": Timestamp.now(),
+    "statusHistory": FieldValue.arrayUnion([
+      {
+        "status": status,
+        "at": Timestamp.now(),
+      }
+    ]),
+  });
+}
 
-      'statusHistory':
-          FieldValue.arrayUnion([
-        StatusHistoryModel(
-          status: status,
-          description: description,
-          performedBy: performedBy,
-          createdAt: Timestamp.now(),
-        ).toMap(),
-      ]),
-    });
+Future<void> updateWooCommerceOrderStatus({
+  required int wooOrderId,
+  required String status,
+}) async {
+  final auth = base64Encode(
+    utf8.encode(
+      "${Config.consumerKey}:${Config.consumerSecret}",
+    ),
+  );
 
-    debugPrint(
-      "✅ Order status updated: $status",
+  final response = await http.put(
+    Uri.parse(
+      "${Config.baseUrl}${Config.apiPath}wc/v3/orders/$wooOrderId",
+    ),
+    headers: {
+      "Authorization": "Basic $auth",
+      "Content-Type": "application/json",
+    },
+    body: jsonEncode({
+      "status": status,
+    }),
+  );
+
+  if (response.statusCode != 200) {
+    throw Exception(
+      "WooCommerce update failed:\n${response.body}",
     );
-  } catch (e) {
-    debugPrint(
-      "❌ updateOrderStatus(): $e",
-    );
-    rethrow;
   }
 }
 
@@ -297,4 +319,64 @@ class OrderService {
 
   return UserModel.fromFirestore(doc);
 }
+
+
+Future<void> updateTrackingInfo({
+  required String orderId,
+  required TrackingInfo tracking,
+}) async {
+  final trackingUrl =
+      tracking.trackingUrl ??
+          _buildTrackingUrl(
+            tracking.courier,
+            tracking.trackingNumber,
+          );
+
+  await FirebaseFirestore.instance
+      .collection("Orders")
+      .doc(orderId)
+      .update({
+    "tracking": {
+      "courier": tracking.courier,
+      "trackingNumber": tracking.trackingNumber,
+      "trackingUrl": trackingUrl,
+      "notes": tracking.notes ?? "",
+      "updatedAt": Timestamp.now(),
+    },
+
+    "updatedAt":
+        FieldValue.serverTimestamp(),
+  });
+}
+
+String _buildTrackingUrl(
+  String courier,
+  String trackingNumber,
+) {
+  switch (courier.toLowerCase()) {
+    case "delhivery":
+      return "https://www.delhivery.com/track/package/$trackingNumber";
+
+    case "bluedart":
+    case "blue dart":
+      return "https://www.bluedart.com/tracking?tracking=$trackingNumber";
+
+    case "dtdc":
+      return "https://www.dtdc.in/tracking/tracking_results.asp?strcnno=$trackingNumber";
+
+    case "xpressbees":
+      return "https://www.xpressbees.com/shipment/tracking/$trackingNumber";
+
+    case "ekart":
+      return "https://ekartlogistics.com/shipmenttrack/$trackingNumber";
+
+    case "speed post":
+    case "india post":
+      return "https://www.indiapost.gov.in/_layouts/15/dop.portal.tracking/trackconsignment.aspx?ConsignmentNo=$trackingNumber";
+
+    default:
+      return "";
+  }
+}
+
 }

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:gladskin_backend/models/tracking_model.dart';
 
 import 'address_model.dart';
 import 'coupon_order_model.dart';
@@ -12,6 +13,8 @@ class OrderModel {
   final String uid;
 
   final String orderNumber;
+
+  final TrackingInfo? tracking;
 
   final int wooOrderId;
 
@@ -103,6 +106,7 @@ class OrderModel {
   final Timestamp? updatedAt;
 
   const OrderModel({
+    this.tracking,
     required this.id,
     required this.uid,
     required this.orderNumber,
@@ -156,6 +160,8 @@ class OrderModel {
         doc.data() as Map<String, dynamic>;
 
     return OrderModel(
+
+      
       id: doc.id,
 
       uid: map['uid'] ?? '',
@@ -300,6 +306,10 @@ class OrderModel {
           map['coupon'] ?? {},
         ),
       ),
+
+      tracking: map["tracking"] != null
+    ? TrackingInfo.fromMap(map["tracking"])
+    : null,
 
       items:
           (map['items']
