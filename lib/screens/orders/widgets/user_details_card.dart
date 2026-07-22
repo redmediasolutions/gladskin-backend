@@ -78,6 +78,11 @@ class UserDetailsCard extends StatelessWidget {
             ),
 
             row(
+              "Phone",
+              user?.phoneNumber,
+            ),
+
+            row(
               "Referred By",
               user!.referredBy,
             ),

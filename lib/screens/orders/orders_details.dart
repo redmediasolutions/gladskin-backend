@@ -70,6 +70,24 @@ bool _updatingStatus = false;
 });
   }
 
+String normalizeStatus(String? status) {
+  switch (status?.toLowerCase()) {
+    case "payment_pending":
+    case "checkout-draft":
+    case "draft":
+      return "pending";
+
+    case "payment_failed":
+      return "failed";
+
+    case "on_hold":
+      return "on-hold";
+
+    default:
+      return status ?? "pending";
+  }
+}
+
 Future<void> _updateOrderStatus(OrderModel order) async {
   if (_selectedStatus == null ||
       _selectedStatus == order.status) {
@@ -173,7 +191,7 @@ Widget build(BuildContext context) {
         }
 
         final order = snapshot.data;
-        _selectedStatus ??= order?.status;
+        _selectedStatus ??= normalizeStatus(order?.status);
 
         _selectedCourier ??= order?.tracking?.courier;
 
