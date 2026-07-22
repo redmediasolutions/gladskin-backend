@@ -299,12 +299,29 @@ class _OrdersListState
                               ),
 
                               DataCell(
-                                Text(
-                                  order
-                                      .customer
-                                      .name,
-                                ),
-                              ),
+  Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        order.customer.name,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      const SizedBox(height: 2),
+      Text(
+        order.customer.phone?.isNotEmpty == true
+            ? order.customer.phone!
+            : "-",
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.grey.shade600,
+        ),
+      ),
+    ],
+  ),
+),
 
                               DataCell(
                                 Text(

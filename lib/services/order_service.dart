@@ -21,75 +21,78 @@ class OrderService {
   /// ============================================================
 
   Future<List<OrderModel>> fetchOrders({
-    QueryDocumentSnapshot? lastDoc,
-    int limit = 20,
-    String? status,
-    String? searchText,
-  }) async {
-    try {
-      Query query = _orders
-          .orderBy(
-            'createdAt',
-            descending: true,
-          )
-          .limit(limit);
+  QueryDocumentSnapshot? lastDoc,
+  int limit = 20,
+  String? status,
+  String? searchText,
+}) async {
+  try {
+    Query query = _orders
+        .orderBy(
+          'createdAt',
+          descending: true,
+        )
+        .limit(limit);
 
-      if (status != null &&
-          status.isNotEmpty &&
-          status != 'all') {
-        query = query.where(
-          'status',
-          isEqualTo: status,
-        );
-      }
-
-      if (lastDoc != null) {
-        query = query.startAfterDocument(
-          lastDoc,
-        );
-      }
-
-      final snapshot = await query.get();
-
-      List<OrderModel> orders =
-          snapshot.docs
-              .map(
-                (e) => OrderModel.fromFirestore(
-                  e,
-                ),
-              )
-              .toList();
-
-      /// Client side search
-      if (searchText != null &&
-          searchText.trim().isNotEmpty) {
-        final keyword =
-            searchText.toLowerCase();
-
-        orders =
-            orders.where((order) {
-              return order.orderNumber
-                      .toLowerCase()
-                      .contains(keyword) ||
-                  order.customer.name
-                      .toLowerCase()
-                      .contains(keyword) ||
-                  order.customer.phone
-                      .toLowerCase()
-                      .contains(keyword);
-            }).toList();
-      }
-
-      return orders;
-    } catch (e) {
-      print(
-        "❌ fetchOrders(): $e",
+    if (status != null &&
+        status.isNotEmpty &&
+        status != 'all') {
+      query = query.where(
+        'status',
+        isEqualTo: status,
       );
-
-      rethrow;
     }
-  }
 
+    if (lastDoc != null) {
+      query = query.startAfterDocument(lastDoc);
+    }
+
+    final snapshot = await query.get();
+
+    final List<OrderModel> orders = [];
+
+    for (final doc in snapshot.docs) {
+      final order = OrderModel.fromFirestore(doc);
+
+      // Fallback to Users table if phone is missing
+      if (order.customer.phone.trim().isEmpty) {
+        try {
+          final user = await fetchUser(order.uid);
+
+         if (user?.phoneNumber?.trim().isNotEmpty == true) {
+}
+        } catch (_) {
+          // Ignore if user not found
+        }
+      }
+
+      orders.add(order);
+    }
+
+    // Client-side search
+    if (searchText != null &&
+        searchText.trim().isNotEmpty) {
+      final keyword = searchText.toLowerCase();
+
+      return orders.where((order) {
+        return order.orderNumber
+                .toLowerCase()
+                .contains(keyword) ||
+            order.customer.name
+                .toLowerCase()
+                .contains(keyword) ||
+            order.customer.phone
+                .toLowerCase()
+                .contains(keyword);
+      }).toList();
+    }
+
+    return orders;
+  } catch (e) {
+    print("❌ fetchOrders(): $e");
+    rethrow;
+  }
+}
   /// ============================================================
   /// FETCH SINGLE ORDER
   /// ============================================================
