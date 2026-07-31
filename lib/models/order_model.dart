@@ -347,6 +347,62 @@ class OrderModel {
     );
   }
 
+  OrderModel copyWith({
+  CustomerModel? customer,
+  String? status,
+  String? wooStatus,
+  TrackingInfo? tracking,
+  Timestamp? updatedAt,
+}) {
+  return OrderModel(
+    id: id,
+    uid: uid,
+    orderNumber: orderNumber,
+    tracking: tracking ?? this.tracking,
+    wooOrderId: wooOrderId,
+    status: status ?? this.status,
+    wooStatus: wooStatus ?? this.wooStatus,
+    paymentMethod: paymentMethod,
+    paymentStatus: paymentStatus,
+    razorpayOrderId: razorpayOrderId,
+    razorpayPaymentId: razorpayPaymentId,
+    paymentCapturedAt: paymentCapturedAt,
+    subtotal: subtotal,
+    shipping: shipping,
+    tax: tax,
+    grossTotal: grossTotal,
+    discountedTotal: discountedTotal,
+    finalPayable: finalPayable,
+    couponDiscount: couponDiscount,
+    walletUsed: walletUsed,
+    walletBalance: walletBalance,
+    codCharge: codCharge,
+    rewardAmount: rewardAmount,
+    rewardReleased: rewardReleased,
+    rewardReversed: rewardReversed,
+    rewardReleasedAt: rewardReleasedAt,
+    referralRewardStatus: referralRewardStatus,
+    referralRewardGivenTo: referralRewardGivenTo,
+    trackingNumber: trackingNumber,
+    trackingUrl: trackingUrl,
+    courierName: courierName,
+    shippedAt: shippedAt,
+    deliveredAt: deliveredAt,
+    itemCount: itemCount,
+    totalQuantity: totalQuantity,
+    gstBreakup: gstBreakup,
+    taxableBreakup: taxableBreakup,
+    customer: customer ?? this.customer,
+    billing: billing,
+    shippingAddress: shippingAddress,
+    coupon: coupon,
+    items: items,
+    statusHistory: statusHistory,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+}
+
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,

@@ -10,6 +10,20 @@ import '../models/order_model.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+class PaginatedOrders {
+  final List<OrderModel> orders;
+
+  final QueryDocumentSnapshot? lastDocument;
+
+  final bool hasMore;
+
+  PaginatedOrders({
+    required this.orders,
+    required this.lastDocument,
+    required this.hasMore,
+  });
+}
+
 class OrderService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -20,7 +34,11 @@ class OrderService {
   /// FETCH ORDERS
   /// ============================================================
 
-  Future<List<OrderModel>> fetchOrders({
+  /// ============================================================
+/// FETCH ORDERS (PAGINATED)
+/// ============================================================
+
+Future<PaginatedOrders> fetchOrders({
   QueryDocumentSnapshot? lastDoc,
   int limit = 20,
   String? status,
@@ -36,9 +54,9 @@ class OrderService {
 
     if (status != null &&
         status.isNotEmpty &&
-        status != 'all') {
+        status != "all") {
       query = query.where(
-        'status',
+        "status",
         isEqualTo: status,
       );
     }
@@ -49,32 +67,44 @@ class OrderService {
 
     final snapshot = await query.get();
 
-    final List<OrderModel> orders = [];
+    List<OrderModel> orders = [];
 
     for (final doc in snapshot.docs) {
-      final order = OrderModel.fromFirestore(doc);
+      var order = OrderModel.fromFirestore(doc);
 
-      // Fallback to Users table if phone is missing
+      // ---------------------------------------------------
+      // Fallback phone from Users collection
+      // ---------------------------------------------------
       if (order.customer.phone.trim().isEmpty) {
         try {
           final user = await fetchUser(order.uid);
 
-         if (user?.phoneNumber?.trim().isNotEmpty == true) {
-}
-        } catch (_) {
-          // Ignore if user not found
-        }
+          final phone =
+              user?.phoneNumber?.trim();
+
+          if (phone != null &&
+              phone.isNotEmpty) {
+            order = order.copyWith(
+              customer: order.customer.copyWith(
+                phone: phone,
+              ),
+            );
+          }
+        } catch (_) {}
       }
 
       orders.add(order);
     }
 
+    // ---------------------------------------------------
     // Client-side search
+    // ---------------------------------------------------
     if (searchText != null &&
         searchText.trim().isNotEmpty) {
-      final keyword = searchText.toLowerCase();
+      final keyword =
+          searchText.trim().toLowerCase();
 
-      return orders.where((order) {
+      orders = orders.where((order) {
         return order.orderNumber
                 .toLowerCase()
                 .contains(keyword) ||
@@ -87,9 +117,17 @@ class OrderService {
       }).toList();
     }
 
-    return orders;
+    return PaginatedOrders(
+      orders: orders,
+      lastDocument: snapshot.docs.isNotEmpty
+          ? snapshot.docs.last
+          : null,
+      hasMore: snapshot.docs.length == limit,
+    );
   } catch (e) {
-    print("❌ fetchOrders(): $e");
+    debugPrint(
+      "❌ fetchOrders(): $e",
+    );
     rethrow;
   }
 }
@@ -381,5 +419,7 @@ String _buildTrackingUrl(
       return "";
   }
 }
+
+
 
 }

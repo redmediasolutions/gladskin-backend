@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/order_model.dart';
 import '../../services/order_service.dart';
 import 'widgets/order_status_chip.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class OrdersList extends StatefulWidget {
   const OrdersList({super.key});
@@ -18,7 +19,15 @@ class _OrdersListState
   final OrderService _orderService =
       OrderService();
 
-  late Future<List<OrderModel>> _future;
+  List<OrderModel> _orders = [];
+
+bool _isLoading = false;
+bool _hasMore = true;
+
+QueryDocumentSnapshot? _lastDocument;
+
+final ScrollController _scrollController =
+    ScrollController();
 
   final TextEditingController
       _searchController =
@@ -27,24 +36,66 @@ class _OrdersListState
   String _status = "all";
 
   @override
-  void initState() {
-    super.initState();
-    _loadOrders();
-  }
+void initState() {
+  super.initState();
 
-  void _loadOrders() {
-    _future = _orderService.fetchOrders(
-      status: _status,
-      searchText:
-          _searchController.text.trim(),
-    );
-  }
+  _loadOrders(refresh: true);
 
-  Future<void> _refresh() async {
-    setState(() {
+  _scrollController.addListener(() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 300 &&
+        !_isLoading &&
+        _hasMore) {
       _loadOrders();
+    }
+  });
+}
+
+  Future<void> _loadOrders({
+  bool refresh = false,
+}) async {
+  if (_isLoading) return;
+
+  setState(() {
+    _isLoading = true;
+  });
+
+  if (refresh) {
+    _orders.clear();
+    _lastDocument = null;
+    _hasMore = true;
+  }
+
+  final result = await _orderService.fetchOrders(
+    lastDoc: _lastDocument,
+    limit: 20,
+    status: _status,
+    searchText: _searchController.text.trim(),
+  );
+
+  if (mounted) {
+    setState(() {
+      _orders.addAll(result.orders);
+
+      _lastDocument = result.lastDocument;
+
+      _hasMore = result.hasMore;
+
+      _isLoading = false;
     });
   }
+}
+
+  Future<void> _refresh() async {
+  await _loadOrders(refresh: true);
+}
+
+  @override
+void dispose() {
+  _scrollController.dispose();
+  _searchController.dispose();
+  super.dispose();
+}
 
   @override
   Widget build(BuildContext context) {
@@ -205,191 +256,121 @@ class _OrdersListState
 
             /// TABLE
             Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius:
-                      BorderRadius.circular(
-                    18,
+  child: Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: _isLoading && _orders.isEmpty
+        ? const Center(
+            child: CircularProgressIndicator(),
+          )
+        : Scrollbar(
+            controller: _scrollController,
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  headingRowColor:
+                      WidgetStateProperty.all(
+                    const Color(0xFFF8F4F4),
                   ),
-                ),
-                child: FutureBuilder<
-                    List<OrderModel>>(
-                  future: _future,
-                  builder: (
-                    context,
-                    snapshot,
-                  ) {
-                    if (snapshot
-                            .connectionState ==
-                        ConnectionState
-                            .waiting) {
-                      return const Center(
-                        child:
-                            CircularProgressIndicator(),
-                      );
-                    }
-
-                    if (snapshot
-                        .hasError) {
-                      return Center(
-                        child: Text(
-                          snapshot.error
-                              .toString(),
+                  columns: const [
+                    DataColumn(label: Text("Order")),
+                    DataColumn(label: Text("Customer")),
+                    DataColumn(label: Text("Total")),
+                    DataColumn(label: Text("Status")),
+                    DataColumn(label: Text("Date")),
+                    DataColumn(label: Text("")),
+                  ],
+                  rows: _orders.map((order) {
+                    return DataRow(
+                      cells: [
+                        DataCell(
+                          Text(order.orderNumber),
                         ),
-                      );
-                    }
 
-                    final orders =
-                        snapshot.data ??
-                            [];
-
-                    if (orders.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          "No Orders Found",
-                        ),
-                      );
-                    }
-
-                    return SingleChildScrollView(
-                      child: DataTable(
-                        headingRowColor:
-                            WidgetStateProperty.all(
-                          const Color(
-                            0xFFF8F4F4,
-                          ),
-                        ),
-                        columns: const [
-                          DataColumn(
-                            label:
-                                Text("Order"),
-                          ),
-                          DataColumn(
-                            label: Text(
-                                "Customer"),
-                          ),
-                          DataColumn(
-                            label:
-                                Text("Total"),
-                          ),
-                          DataColumn(
-                            label: Text(
-                                "Status"),
-                          ),
-                          DataColumn(
-                            label:
-                                Text("Date"),
-                          ),
-                          DataColumn(
-                            label:
-                                Text(""),
-                          ),
-                        ],
-                        rows: orders.map((
-                          order,
-                        ) {
-                          return DataRow(
-                            cells: [
-                              DataCell(
-                                Text(
-                                  order
-                                      .orderNumber,
+                        DataCell(
+                          Column(
+                            mainAxisAlignment:
+                                MainAxisAlignment.center,
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                order.customer.name,
+                                style: const TextStyle(
+                                  fontWeight:
+                                      FontWeight.w600,
                                 ),
                               ),
-
-                              DataCell(
-  Column(
-    mainAxisAlignment: MainAxisAlignment.center,
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        order.customer.name,
-        style: const TextStyle(
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      const SizedBox(height: 2),
-      Text(
-        order.customer.phone?.isNotEmpty == true
-            ? order.customer.phone!
-            : "-",
-        style: TextStyle(
-          fontSize: 12,
-          color: Colors.grey.shade600,
-        ),
-      ),
-    ],
-  ),
-),
-
-                              DataCell(
-                                Text(
-                                  "₹${order.finalPayable.toStringAsFixed(2)}",
-                                ),
-                              ),
-
-                              DataCell(
-                                OrderStatusChip(
-                                  status:
-                                      order
-                                          .status,
-                                ),
-                              ),
-
-                              DataCell(
-                                Text(
-                                  order.createdAt ==
-                                          null
-                                      ? "-"
-                                      : order
-                                          .createdAt!
-                                          .toDate()
-                                          .toString()
-                                          .split(
-                                              " ")
-                                          .first,
-                                ),
-                              ),
-
-                              DataCell(
-                                PopupMenuButton<
-                                    String>(
-                                  onSelected:
-                                      (
-                                        value,
-                                      ) {
-                                        if (value ==
-                                            "view") {
-                                          context.go(
-                                            "/orders/${order.id}",
-                                          );
-                                        }
-                                      },
-                                  itemBuilder:
-                                      (
-                                        context,
-                                      ) =>
-                                          const [
-                                    PopupMenuItem(
-                                      value:
-                                          "view",
-                                      child: Text(
-                                        "View",
-                                      ),
-                                    ),
-                                  ],
+                              const SizedBox(height: 2),
+                              Text(
+                                order.customer.phone.isNotEmpty
+                                    ? order.customer.phone
+                                    : "-",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color:
+                                      Colors.grey.shade600,
                                 ),
                               ),
                             ],
-                          );
-                        }).toList(),
-                      ),
+                          ),
+                        ),
+
+                        DataCell(
+                          Text(
+                            "₹${order.finalPayable.toStringAsFixed(2)}",
+                          ),
+                        ),
+
+                        DataCell(
+                          OrderStatusChip(
+                            status: order.status,
+                          ),
+                        ),
+
+                        DataCell(
+                          Text(
+                            order.createdAt == null
+                                ? "-"
+                                : order.createdAt!
+                                    .toDate()
+                                    .toString()
+                                    .split(" ")
+                                    .first,
+                          ),
+                        ),
+
+                        DataCell(
+                          PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == "view") {
+                                context.go(
+                                  "/orders/${order.id}",
+                                );
+                              }
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                value: "view",
+                                child: Text("View"),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     );
-                  },
+                  }).toList(),
                 ),
               ),
             ),
+          ),
+  ),
+),
           ],
         ),
       ),
