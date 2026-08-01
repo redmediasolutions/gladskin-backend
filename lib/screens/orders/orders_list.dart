@@ -22,12 +22,17 @@ class _OrdersListState
   List<OrderModel> _orders = [];
 
 bool _isLoading = false;
-bool _hasMore = true;
 
-QueryDocumentSnapshot? _lastDocument;
 
-final ScrollController _scrollController =
-    ScrollController();
+static const int _pageSize = 20;
+int _currentPage = 1;
+bool _hasNextPage = false;
+bool _hasPreviousPage = false;
+
+/// Cursor for each page.
+/// page 1 = null
+final List<QueryDocumentSnapshot?> _pageCursors = [null];
+
 
   final TextEditingController
       _searchController =
@@ -35,64 +40,53 @@ final ScrollController _scrollController =
 
   String _status = "all";
 
-  @override
+@override
 void initState() {
   super.initState();
-
-  _loadOrders(refresh: true);
-
-  _scrollController.addListener(() {
-    if (_scrollController.position.pixels >=
-            _scrollController.position.maxScrollExtent - 300 &&
-        !_isLoading &&
-        _hasMore) {
-      _loadOrders();
-    }
-  });
+  _loadPage(1);
 }
 
-  Future<void> _loadOrders({
-  bool refresh = false,
-}) async {
-  if (_isLoading) return;
-
-  setState(() {
-    _isLoading = true;
-  });
-
-  if (refresh) {
-    _orders.clear();
-    _lastDocument = null;
-    _hasMore = true;
-  }
+Future<void> _loadPage(int page) async {
+  setState(() => _isLoading = true);
 
   final result = await _orderService.fetchOrders(
-    lastDoc: _lastDocument,
-    limit: 50,
+    lastDoc: _pageCursors[page - 1],
+    limit: _pageSize,
     status: _status,
     searchText: _searchController.text.trim(),
   );
 
-  if (mounted) {
-    setState(() {
-      _orders.addAll(result.orders);
+  if (!mounted) return;
 
-      _lastDocument = result.lastDocument;
+  setState(() {
+    _orders = result.orders;
 
-      _hasMore = result.hasMore;
+    _currentPage = page;
 
-      _isLoading = false;
-    });
-  }
+    _hasNextPage = result.hasMore;
+
+    _hasPreviousPage = page > 1;
+
+    if (result.hasMore &&
+        _pageCursors.length == page) {
+      _pageCursors.add(result.lastDocument);
+    }
+
+    _isLoading = false;
+  });
 }
 
-  Future<void> _refresh() async {
-  await _loadOrders(refresh: true);
-}
 
+
+Future<void> _refresh() async {
+  _pageCursors
+    ..clear()
+    ..add(null);
+
+  await _loadPage(1);
+}
   @override
 void dispose() {
-  _scrollController.dispose();
   _searchController.dispose();
   super.dispose();
 }
@@ -159,46 +153,52 @@ void dispose() {
             Row(
               children: [
                 Expanded(
-                  child: Expanded(
-  child: TextField(
-    controller: _searchController,
-    decoration: InputDecoration(
-      hintText: "Search order, customer or phone",
-      prefixIcon: const Icon(Icons.search),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: "Search order, customer or phone",
+                      prefixIcon: const Icon(Icons.search),
+                  
+                      suffixIcon: _searchController.text.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close),
+                              tooltip: "Clear Search",
+                              onPressed: () {
+                                _searchController.clear();
+                  
+                                FocusScope.of(context).unfocus();
+                  
+                                _pageCursors
+  ..clear()
+  ..add(null);
 
-      suffixIcon: _searchController.text.isEmpty
-          ? null
-          : IconButton(
-              icon: const Icon(Icons.close),
-              tooltip: "Clear Search",
-              onPressed: () {
-                _searchController.clear();
+_loadPage(1);
+                  
+                                setState(() {});
+                              },
+                            ),
+                  
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  
+                    onChanged: (_) {
+                      setState(() {});
+                    },
+                  
+                    onSubmitted: (_) {
+                      _pageCursors
+  ..clear()
+  ..add(null);
 
-                FocusScope.of(context).unfocus();
-
-                _loadOrders(refresh: true);
-
-                setState(() {});
-              },
-            ),
-
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-    ),
-
-    onChanged: (_) {
-      setState(() {});
-    },
-
-    onSubmitted: (_) {
-      _loadOrders(refresh: true);
-    },
-  ),
-),
+_loadPage(1);
+                    },
+                  ),
                 ),
 
                 const SizedBox(width: 16),
@@ -254,7 +254,11 @@ void dispose() {
                       setState(() {
                         _status =
                             value.toString();
-                        _loadOrders();
+                        _pageCursors
+  ..clear()
+  ..add(null);
+
+_loadPage(1);
                       });
                     },
                   ),
@@ -275,110 +279,147 @@ void dispose() {
         ? const Center(
             child: CircularProgressIndicator(),
           )
-        : Scrollbar(
-            controller: _scrollController,
-            thumbVisibility: true,
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: DataTable(
-                  headingRowColor:
-                      WidgetStateProperty.all(
-                    const Color(0xFFF8F4F4),
-                  ),
-                  columns: const [
-                    DataColumn(label: Text("Order")),
-                    DataColumn(label: Text("Customer")),
-                    DataColumn(label: Text("Total")),
-                    DataColumn(label: Text("Status")),
-                    DataColumn(label: Text("Date")),
-                    DataColumn(label: Text("")),
-                  ],
-                  rows: _orders.map((order) {
-                    return DataRow(
-                      cells: [
-                        DataCell(
-                          Text(order.orderNumber),
-                        ),
-
-                        DataCell(
-                          Column(
-                            mainAxisAlignment:
-                                MainAxisAlignment.center,
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                order.customer.name,
-                                style: const TextStyle(
-                                  fontWeight:
-                                      FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                order.customer.phone.isNotEmpty
-                                    ? order.customer.phone
-                                    : "-",
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color:
-                                      Colors.grey.shade600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        DataCell(
-                          Text(
-                            "₹${order.finalPayable.toStringAsFixed(2)}",
-                          ),
-                        ),
-
-                        DataCell(
-                          OrderStatusChip(
-                            status: order.status,
-                          ),
-                        ),
-
-                        DataCell(
-                          Text(
-                            order.createdAt == null
-                                ? "-"
-                                : order.createdAt!
-                                    .toDate()
-                                    .toString()
-                                    .split(" ")
-                                    .first,
-                          ),
-                        ),
-
-                        DataCell(
-                          PopupMenuButton<String>(
-                            onSelected: (value) {
-                              if (value == "view") {
-                                context.go(
-                                  "/orders/${order.id}",
-                                );
-                              }
-                            },
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                value: "view",
-                                child: Text("View"),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
-                ),
+        : SingleChildScrollView(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowColor:
+                  WidgetStateProperty.all(
+                const Color(0xFFF8F4F4),
               ),
+              columns: const [
+                DataColumn(label: Text("Order")),
+                DataColumn(label: Text("Customer")),
+                DataColumn(label: Text("Total")),
+                DataColumn(label: Text("Status")),
+                DataColumn(label: Text("Date")),
+                DataColumn(label: Text("")),
+              ],
+              rows: _orders.map((order) {
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      Text(order.orderNumber),
+                    ),
+        
+                    DataCell(
+                      Column(
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            order.customer.name,
+                            style: const TextStyle(
+                              fontWeight:
+                                  FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            order.customer.phone.isNotEmpty
+                                ? order.customer.phone
+                                : "-",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color:
+                                  Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+        
+                    DataCell(
+                      Text(
+                        "₹${order.finalPayable.toStringAsFixed(2)}",
+                      ),
+                    ),
+        
+                    DataCell(
+                      OrderStatusChip(
+                        status: order.status,
+                      ),
+                    ),
+        
+                    DataCell(
+                      Text(
+                        order.createdAt == null
+                            ? "-"
+                            : order.createdAt!
+                                .toDate()
+                                .toString()
+                                .split(" ")
+                                .first,
+                      ),
+                    ),
+        
+                    DataCell(
+                      PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == "view") {
+                            context.go(
+                              "/orders/${order.id}",
+                            );
+                          }
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                            value: "view",
+                            child: Text("View"),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
             ),
+            
           ),
+        ),
+  ),
+),
+
+Padding(
+  padding: const EdgeInsets.all(16),
+  child: Row(
+    children: [
+      Text(
+        "Showing ${((_currentPage - 1) * _pageSize) + 1}"
+        " - ${((_currentPage - 1) * _pageSize) + _orders.length}",
+      ),
+
+      const Spacer(),
+
+      OutlinedButton.icon(
+        onPressed: _hasPreviousPage
+            ? () => _loadPage(_currentPage - 1)
+            : null,
+        icon: const Icon(Icons.chevron_left),
+        label: const Text("Previous"),
+      ),
+
+      const SizedBox(width: 16),
+
+      Text(
+        "Page $_currentPage",
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+
+      const SizedBox(width: 16),
+
+      ElevatedButton.icon(
+        onPressed: _hasNextPage
+            ? () => _loadPage(_currentPage + 1)
+            : null,
+        icon: const Icon(Icons.chevron_right),
+        label: const Text("Next"),
+      ),
+    ],
   ),
 ),
           ],

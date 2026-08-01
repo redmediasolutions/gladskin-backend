@@ -40,7 +40,7 @@ class OrderService {
 
 Future<PaginatedOrders> fetchOrders({
   QueryDocumentSnapshot? lastDoc,
-  int limit = 20,
+  int limit = 15,
   String? status,
   String? searchText,
 }) async {

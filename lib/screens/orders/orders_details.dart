@@ -148,15 +148,15 @@ Future<void> _updateOrderStatus(OrderModel order) async {
 
 Future<void> _refresh() async {
   setState(() {
-    _future =
-        _service.fetchOrder(widget.orderId);
+    _selectedStatus = null;
+    _selectedCourier = null;
+
+    _future = _service.fetchOrder(widget.orderId);
 
     _userFuture = _future.then((order) {
       if (order == null) return null;
 
-      return _service.fetchUser(
-        order.uid,
-      );
+      return _service.fetchUser(order.uid);
     });
   });
 }
@@ -218,11 +218,13 @@ Widget build(BuildContext context) {
   "failed",
 };
 
-final normalizedStatus = normalizeStatus(order?.status);
+if (_selectedStatus == null) {
+  final normalizedStatus = normalizeStatus(order?.status);
 
-_selectedStatus = validStatuses.contains(normalizedStatus)
-    ? normalizedStatus
-    : "pending";
+  _selectedStatus = validStatuses.contains(normalizedStatus)
+      ? normalizedStatus
+      : "pending";
+}
 
         _selectedCourier ??= order?.tracking?.courier;
 
