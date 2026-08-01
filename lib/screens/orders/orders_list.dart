@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gladskin_backend/screens/orders/widgets/order_card.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../models/order_model.dart';
@@ -22,17 +23,12 @@ class _OrdersListState
   List<OrderModel> _orders = [];
 
 bool _isLoading = false;
+bool _hasMore = true;
 
+QueryDocumentSnapshot? _lastDocument;
 
-static const int _pageSize = 20;
-int _currentPage = 1;
-bool _hasNextPage = false;
-bool _hasPreviousPage = false;
-
-/// Cursor for each page.
-/// page 1 = null
-final List<QueryDocumentSnapshot?> _pageCursors = [null];
-
+final ScrollController _scrollController =
+    ScrollController();
 
   final TextEditingController
       _searchController =
@@ -40,53 +36,127 @@ final List<QueryDocumentSnapshot?> _pageCursors = [null];
 
   String _status = "all";
 
-@override
+  @override
 void initState() {
   super.initState();
-  _loadPage(1);
+
+  _loadOrders(refresh: true);
+
+  _scrollController.addListener(() {
+  if (!_scrollController.hasClients) return;
+
+  final position = _scrollController.position;
+
+  // Load next page when 70% of the current list is reached
+  if (position.pixels >= position.maxScrollExtent * 0.7 &&
+      !_isLoading &&
+      _hasMore) {
+    _loadOrders();
+  }
+});
 }
 
-Future<void> _loadPage(int page) async {
-  setState(() => _isLoading = true);
+Widget _statusChip(
+  String value,
+  String label,
+) {
+  final selected = _status == value;
 
-  final result = await _orderService.fetchOrders(
-    lastDoc: _pageCursors[page - 1],
-    limit: _pageSize,
-    status: _status,
-    searchText: _searchController.text.trim(),
-  );
+  return ChoiceChip(
+    label: Text(label),
+    selected: selected,
+    showCheckmark: false,
 
-  if (!mounted) return;
+    selectedColor: Theme.of(context).primaryColor,
 
+    labelStyle: TextStyle(
+      color: selected ? Colors.white : Colors.black87,
+      fontWeight:
+          selected ? FontWeight.w600 : FontWeight.normal,
+    ),
+
+    onSelected: (_) async {
   setState(() {
-    _orders = result.orders;
-
-    _currentPage = page;
-
-    _hasNextPage = result.hasMore;
-
-    _hasPreviousPage = page > 1;
-
-    if (result.hasMore &&
-        _pageCursors.length == page) {
-      _pageCursors.add(result.lastDocument);
-    }
-
-    _isLoading = false;
+    _status = value;
   });
+
+  await _loadOrders(refresh: true);
+},
+  );
 }
 
+  Future<void> _loadOrders({
+  bool refresh = false,
+}) async {
 
+  if (refresh) {
+    _orders.clear();
+    _lastDocument = null;
+    _hasMore = true;
+  }
 
-Future<void> _refresh() async {
-  _pageCursors
-    ..clear()
-    ..add(null);
+  if (_isLoading || !_hasMore) return;
 
-  await _loadPage(1);
+  _isLoading = true;
+
+  if (mounted) {
+    setState(() {});
+  }
+
+  try {
+    final result = await _orderService.fetchOrders(
+      lastDoc: _lastDocument,
+      limit: 25,
+      status: _status,
+      searchText: _searchController.text.trim(),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      final Map<String, OrderModel> map = {
+        for (final o in _orders)
+          (o.wooOrderId > 0
+              ? "woo_${o.wooOrderId}"
+              : o.orderNumber): o,
+      };
+
+      for (final order in result.orders) {
+        final key = order.wooOrderId > 0
+            ? "woo_${order.wooOrderId}"
+            : order.orderNumber;
+
+        map[key] = order;
+      }
+
+      _orders = map.values.toList()
+        ..sort((a, b) {
+          final aTime =
+              a.createdAt?.millisecondsSinceEpoch ?? 0;
+          final bTime =
+              b.createdAt?.millisecondsSinceEpoch ?? 0;
+
+          return bTime.compareTo(aTime);
+        });
+
+      _lastDocument = result.lastDocument;
+      _hasMore = result.hasMore;
+    });
+  } finally {
+    _isLoading = false;
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
 }
+  Future<void> _refresh() async {
+  await _loadOrders(refresh: true);
+}
+
   @override
 void dispose() {
+  _scrollController.dispose();
   _searchController.dispose();
   super.dispose();
 }
@@ -150,278 +220,112 @@ void dispose() {
             const SizedBox(height: 24),
 
             /// SEARCH + FILTER
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: "Search order, customer or phone",
-                      prefixIcon: const Icon(Icons.search),
-                  
-                      suffixIcon: _searchController.text.isEmpty
-                          ? null
-                          : IconButton(
-                              icon: const Icon(Icons.close),
-                              tooltip: "Clear Search",
-                              onPressed: () {
-                                _searchController.clear();
-                  
-                                FocusScope.of(context).unfocus();
-                  
-                                _pageCursors
-  ..clear()
-  ..add(null);
+/// SEARCH + STATUS FILTER
+Container(
+  padding: const EdgeInsets.all(16),
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(16),
+  ),
+  child: Column(
+    children: [
+      TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: "Search order, customer or phone",
+          prefixIcon: const Icon(Icons.search),
 
-_loadPage(1);
-                  
-                                setState(() {});
-                              },
-                            ),
-                  
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  
-                    onChanged: (_) {
-                      setState(() {});
-                    },
-                  
-                    onSubmitted: (_) {
-                      _pageCursors
-  ..clear()
-  ..add(null);
+          suffixIcon: _searchController.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: "Clear Search",
+                  onPressed: () {
+                    _searchController.clear();
 
-_loadPage(1);
-                    },
-                  ),
+                    FocusScope.of(context).unfocus();
+
+                    _loadOrders(refresh: true);
+
+                    setState(() {});
+                  },
                 ),
 
-                const SizedBox(width: 16),
+          filled: true,
+          fillColor: Colors.grey.shade50,
 
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(
-                    horizontal: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius:
-                        BorderRadius.circular(
-                      12,
-                    ),
-                  ),
-                  child: DropdownButton(
-                    underline:
-                        const SizedBox(),
-                    value: _status,
-                    items: const [
-                      DropdownMenuItem(
-                        value: "all",
-                        child: Text("All"),
-                      ),
-                      DropdownMenuItem(
-                        value: "pending",
-                        child:
-                            Text("Pending"),
-                      ),
-                      DropdownMenuItem(
-                        value:
-                            "processing",
-                        child: Text(
-                          "Processing",
-                        ),
-                      ),
-                      DropdownMenuItem(
-                        value:
-                            "shipped",
-                        child:
-                            Text("Shipped"),
-                      ),
-                      DropdownMenuItem(
-                        value:
-                            "delivered",
-                        child: Text(
-                          "Delivered",
-                        ),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _status =
-                            value.toString();
-                        _pageCursors
-  ..clear()
-  ..add(null);
-
-_loadPage(1);
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            /// TABLE
-            Expanded(
-  child: Container(
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-    ),
-    child: _isLoading && _orders.isEmpty
-        ? const Center(
-            child: CircularProgressIndicator(),
-          )
-        : SingleChildScrollView(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowColor:
-                  WidgetStateProperty.all(
-                const Color(0xFFF8F4F4),
-              ),
-              columns: const [
-                DataColumn(label: Text("Order")),
-                DataColumn(label: Text("Customer")),
-                DataColumn(label: Text("Total")),
-                DataColumn(label: Text("Status")),
-                DataColumn(label: Text("Date")),
-                DataColumn(label: Text("")),
-              ],
-              rows: _orders.map((order) {
-                return DataRow(
-                  cells: [
-                    DataCell(
-                      Text(order.orderNumber),
-                    ),
-        
-                    DataCell(
-                      Column(
-                        mainAxisAlignment:
-                            MainAxisAlignment.center,
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            order.customer.name,
-                            style: const TextStyle(
-                              fontWeight:
-                                  FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            order.customer.phone.isNotEmpty
-                                ? order.customer.phone
-                                : "-",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color:
-                                  Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-        
-                    DataCell(
-                      Text(
-                        "₹${order.finalPayable.toStringAsFixed(2)}",
-                      ),
-                    ),
-        
-                    DataCell(
-                      OrderStatusChip(
-                        status: order.status,
-                      ),
-                    ),
-        
-                    DataCell(
-                      Text(
-                        order.createdAt == null
-                            ? "-"
-                            : order.createdAt!
-                                .toDate()
-                                .toString()
-                                .split(" ")
-                                .first,
-                      ),
-                    ),
-        
-                    DataCell(
-                      PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == "view") {
-                            context.go(
-                              "/orders/${order.id}",
-                            );
-                          }
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                            value: "view",
-                            child: Text("View"),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
-            ),
-            
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
           ),
         ),
-  ),
-),
 
-Padding(
-  padding: const EdgeInsets.all(16),
-  child: Row(
-    children: [
-      Text(
-        "Showing ${((_currentPage - 1) * _pageSize) + 1}"
-        " - ${((_currentPage - 1) * _pageSize) + _orders.length}",
+        onChanged: (_) {
+          setState(() {});
+        },
+
+        onSubmitted: (_) {
+          _loadOrders(refresh: true);
+        },
       ),
 
-      const Spacer(),
+      const SizedBox(height: 16),
 
-      OutlinedButton.icon(
-        onPressed: _hasPreviousPage
-            ? () => _loadPage(_currentPage - 1)
-            : null,
-        icon: const Icon(Icons.chevron_left),
-        label: const Text("Previous"),
-      ),
-
-      const SizedBox(width: 16),
-
-      Text(
-        "Page $_currentPage",
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-
-      const SizedBox(width: 16),
-
-      ElevatedButton.icon(
-        onPressed: _hasNextPage
-            ? () => _loadPage(_currentPage + 1)
-            : null,
-        icon: const Icon(Icons.chevron_right),
-        label: const Text("Next"),
+      Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          _statusChip("all", "All"),
+          _statusChip("pending", "Pending"),
+          _statusChip("processing", "Processing"),
+          _statusChip("shipped", "Shipped"),
+          _statusChip("delivered", "Delivered"),
+          _statusChip("cancelled", "Cancelled"),
+          _statusChip("completed", "Completed"),
+          _statusChip("failed", "Failed"),
+        ],
       ),
     ],
   ),
 ),
+            const SizedBox(height: 24),
+
+            /// TABLE
+            Expanded(
+  child: _isLoading && _orders.isEmpty
+      ? const Center(
+          child: CircularProgressIndicator(),
+        )
+      : ListView.builder(
+          controller: _scrollController,
+          itemCount: _orders.length +
+              (_hasMore ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (index == _orders.length) {
+  if (!_isLoading) {
+    return const SizedBox.shrink();
+  }
+
+  return const Padding(
+    padding: EdgeInsets.symmetric(vertical: 20),
+    child: Center(
+      child: SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(
+          strokeWidth: 2.5,
+        ),
+      ),
+    ),
+  );
+}
+
+            return OrderCard(
+              order: _orders[index],
+            );
+          },
+        ),
+)
           ],
         ),
       ),

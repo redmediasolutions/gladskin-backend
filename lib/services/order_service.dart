@@ -30,6 +30,10 @@ class OrderService {
   CollectionReference get _orders =>
       _db.collection('Orders');
 
+    /// Cache users to avoid repeated Firestore reads
+  final Map<String, UserModel?> _userCache = {};
+
+
   /// ============================================================
   /// FETCH ORDERS
   /// ============================================================
@@ -67,92 +71,90 @@ Future<PaginatedOrders> fetchOrders({
 
     final snapshot = await query.get();
 
-    List<OrderModel> orders = [];
+List<OrderModel> orders = await Future.wait(
+  snapshot.docs.map((doc) async {
+    var order = OrderModel.fromFirestore(doc);
 
-    for (final doc in snapshot.docs) {
-      var order = OrderModel.fromFirestore(doc);
+    if (order.customer.phone.trim().isEmpty) {
+      try {
+        final user = await fetchUser(order.uid);
 
-      // ---------------------------------------------------
-      // Fallback phone from Users collection
-      // ---------------------------------------------------
-      if (order.customer.phone.trim().isEmpty) {
-        try {
-          final user = await fetchUser(order.uid);
+        final phone = user?.phoneNumber?.trim();
 
-          final phone =
-              user?.phoneNumber?.trim();
-
-          if (phone != null &&
-              phone.isNotEmpty) {
-            order = order.copyWith(
-              customer: order.customer.copyWith(
-                phone: phone,
-              ),
-            );
-          }
-        } catch (_) {}
+        if (phone != null && phone.isNotEmpty) {
+          order = order.copyWith(
+            customer: order.customer.copyWith(
+              phone: phone,
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint(
+          "User lookup failed (${order.uid}): $e",
+        );
       }
-
-      orders.add(order);
     }
 
-    // ---------------------------------------------------
-// Keep only the latest status for each order
+    return order;
+  }),
+);
+    
+// ---------------------------------------------------
+// Keep only the latest document for each order
 // ---------------------------------------------------
 
 final Map<String, OrderModel> latestOrders = {};
 
 for (final order in orders) {
-  final key = order.orderNumber;
+  String key;
 
-  if (!latestOrders.containsKey(key)) {
+  if (order.wooOrderId > 0) {
+    key = "woo_${order.wooOrderId}";
+  } else if ((order.razorpayOrderId ?? "").isNotEmpty) {
+    key = "rzp_${order.razorpayOrderId}";
+  } else if (order.orderNumber.isNotEmpty) {
+    key = "order_${order.orderNumber}";
+  } else {
+    key = order.id;
+  }
+
+  final existing = latestOrders[key];
+
+  if (existing == null) {
     latestOrders[key] = order;
     continue;
   }
 
-  final existing = latestOrders[key]!;
-
-  final existingUpdated =
+  final existingTime =
       existing.updatedAt ?? existing.createdAt;
 
-  final currentUpdated =
+  final currentTime =
       order.updatedAt ?? order.createdAt;
 
-  if (existingUpdated == null) {
-    latestOrders[key] = order;
-    continue;
-  }
-
-  if (currentUpdated != null &&
-      currentUpdated.toDate().isAfter(
-        existingUpdated.toDate(),
-      )) {
+  if (existingTime == null ||
+      (currentTime != null &&
+          currentTime.toDate().isAfter(
+            existingTime.toDate(),
+          ))) {
     latestOrders[key] = order;
   }
 }
 
 orders = latestOrders.values.toList();
 
-    // ---------------------------------------------------
-    // Client-side search
-    // ---------------------------------------------------
-    if (searchText != null &&
-        searchText.trim().isNotEmpty) {
-      final keyword =
-          searchText.trim().toLowerCase();
+// Remove orders without an order number
+orders = orders.where((o) => o.orderNumber.trim().isNotEmpty).toList();
 
-      orders = orders.where((order) {
-        return order.orderNumber
-                .toLowerCase()
-                .contains(keyword) ||
-            order.customer.name
-                .toLowerCase()
-                .contains(keyword) ||
-            order.customer.phone
-                .toLowerCase()
-                .contains(keyword);
-      }).toList();
-    }
+// Client-side search
+if (searchText != null && searchText.trim().isNotEmpty) {
+  final keyword = searchText.trim().toLowerCase();
+
+  orders = orders.where((order) {
+    return order.orderNumber.toLowerCase().contains(keyword) ||
+        order.customer.name.toLowerCase().contains(keyword) ||
+        order.customer.phone.toLowerCase().contains(keyword);
+  }).toList();
+}
 
     return PaginatedOrders(
       orders: orders,
@@ -382,22 +384,28 @@ Future<void> updateWooCommerceOrderStatus({
   ) async {
     // TODO
   }
-  Future<UserModel?> fetchUser(
-  String uid,
-) async {
-  final doc =
-      await FirebaseFirestore.instance
-          .collection("Users")
-          .doc(uid)
-          .get();
+
+Future<UserModel?> fetchUser(String uid) async {
+  if (_userCache.containsKey(uid)) {
+    return _userCache[uid];
+  }
+
+  final doc = await FirebaseFirestore.instance
+      .collection("Users")
+      .doc(uid)
+      .get();
 
   if (!doc.exists) {
+    _userCache[uid] = null;
     return null;
   }
 
-  return UserModel.fromFirestore(doc);
-}
+  final user = UserModel.fromFirestore(doc);
 
+  _userCache[uid] = user;
+
+  return user;
+}
 
 Future<void> updateTrackingInfo({
   required String orderId,
