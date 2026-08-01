@@ -6,7 +6,7 @@ class Config {
   static const String consumerSecret = "cs_b1c8a642fb3573091e8e8c14e79fc4d84ed0dc93";
 
   // Base API URL
-  static const String baseUrl = "https://gs.redmediasolutions.in/";
+  static const String baseUrl = "https://store.gladskin.in/";
 
   // WooCommerce API Endpoint
   static const String apiPath = "/wp-json/";

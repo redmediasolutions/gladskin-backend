@@ -90,23 +90,40 @@ class AdminSidebar extends StatelessWidget {
 
                 _navItem(
                   index: 1,
+                  icon: Icons.people_alt_outlined,
+                  title: "Orders",
+                ),
+
+                _navItem(
+                  index: 2,
                   icon: Icons.local_offer_outlined,
                   title: "Coupons",
                 ),
 
                 _navItem(
-                  index: 2,
+                  index: 3,
                   icon: Icons.campaign_outlined,
                   title: "Influencers",
                 ),
 
                   _navItem(
 
-    index: 3,
+    index: 4,
 
     icon: Icons.payments_outlined,
 
     title: "Reward Withdrawals",
+
+  ),
+
+
+                  _navItem(
+
+    index: 5,
+
+    icon: Icons.notifications_outlined,
+
+    title: "Notifications",
 
   ),
               ],
