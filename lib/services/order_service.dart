@@ -49,12 +49,14 @@ Future<PaginatedOrders> fetchOrders({
   String? searchText,
 }) async {
   try {
-    Query query = _orders
-        .orderBy(
-          'createdAt',
-          descending: true,
-        )
-        .limit(limit);
+    final bool isSearching =
+        searchText != null &&
+        searchText.trim().isNotEmpty;
+
+    Query query = _orders.orderBy(
+      'createdAt',
+      descending: true,
+    );
 
     if (status != null &&
         status.isNotEmpty &&
@@ -65,108 +67,149 @@ Future<PaginatedOrders> fetchOrders({
       );
     }
 
-    if (lastDoc != null) {
-      query = query.startAfterDocument(lastDoc);
+    // Only paginate when NOT searching
+    if (!isSearching) {
+      query = query.limit(limit);
+
+      if (lastDoc != null) {
+        query = query.startAfterDocument(lastDoc);
+      }
     }
 
     final snapshot = await query.get();
 
-List<OrderModel> orders = await Future.wait(
-  snapshot.docs.map((doc) async {
-    var order = OrderModel.fromFirestore(doc);
+    List<OrderModel> orders = await Future.wait(
+      snapshot.docs.map((doc) async {
+        var order = OrderModel.fromFirestore(doc);
 
-    if (order.customer.phone.trim().isEmpty) {
-      try {
-        final user = await fetchUser(order.uid);
+        // Fill missing phone from Users collection
+        if (order.customer.phone.trim().isEmpty) {
+          try {
+            final user = await fetchUser(order.uid);
 
-        final phone = user?.phoneNumber?.trim();
+            final phone = user?.phoneNumber?.trim();
 
-        if (phone != null && phone.isNotEmpty) {
-          order = order.copyWith(
-            customer: order.customer.copyWith(
-              phone: phone,
-            ),
-          );
+            if (phone != null && phone.isNotEmpty) {
+              order = order.copyWith(
+                customer: order.customer.copyWith(
+                  phone: phone,
+                ),
+              );
+            }
+          } catch (e) {
+            debugPrint(
+              "User lookup failed (${order.uid}): $e",
+            );
+          }
         }
-      } catch (e) {
-        debugPrint(
-          "User lookup failed (${order.uid}): $e",
-        );
+
+        return order;
+      }),
+    );
+
+    // Remove duplicate orders
+    final Map<String, OrderModel> latestOrders = {};
+
+    for (final order in orders) {
+      String key;
+
+      if (order.wooOrderId > 0) {
+        key = "woo_${order.wooOrderId}";
+      } else if (order.razorpayOrderId.isNotEmpty) {
+        key = "rzp_${order.razorpayOrderId}";
+      } else if (order.orderNumber.isNotEmpty) {
+        key = "order_${order.orderNumber}";
+      } else {
+        key = order.id;
+      }
+
+      final existing = latestOrders[key];
+
+      if (existing == null) {
+        latestOrders[key] = order;
+        continue;
+      }
+
+      final existingTime =
+          existing.updatedAt ?? existing.createdAt;
+
+      final currentTime =
+          order.updatedAt ?? order.createdAt;
+
+      if (existingTime == null ||
+          (currentTime != null &&
+              currentTime.toDate().isAfter(
+                    existingTime.toDate(),
+                  ))) {
+        latestOrders[key] = order;
       }
     }
 
-    return order;
-  }),
-);
-    
-// ---------------------------------------------------
-// Keep only the latest document for each order
-// ---------------------------------------------------
+    orders = latestOrders.values.toList();
 
-final Map<String, OrderModel> latestOrders = {};
+    // Remove invalid orders
+    orders = orders
+        .where(
+          (o) => o.orderNumber.trim().isNotEmpty,
+        )
+        .toList();
 
-for (final order in orders) {
-  String key;
+    // Client-side search
+    if (isSearching) {
+      final keyword =
+          searchText!.trim().toLowerCase();
 
-  if (order.wooOrderId > 0) {
-    key = "woo_${order.wooOrderId}";
-  } else if ((order.razorpayOrderId ?? "").isNotEmpty) {
-    key = "rzp_${order.razorpayOrderId}";
-  } else if (order.orderNumber.isNotEmpty) {
-    key = "order_${order.orderNumber}";
-  } else {
-    key = order.id;
-  }
+      orders = orders.where((order) {
+        final orderNumber =
+            order.orderNumber.toLowerCase();
 
-  final existing = latestOrders[key];
+        final customerName =
+            order.customer.name.toLowerCase();
 
-  if (existing == null) {
-    latestOrders[key] = order;
-    continue;
-  }
+        final phone =
+            order.customer.phone
+                .replaceAll(" ", "")
+                .replaceAll("+91", "")
+                .replaceAll("-", "")
+                .toLowerCase();
 
-  final existingTime =
-      existing.updatedAt ?? existing.createdAt;
+        final search =
+            keyword
+                .replaceAll(" ", "")
+                .replaceAll("+91", "")
+                .replaceAll("-", "")
+                .toLowerCase();
 
-  final currentTime =
-      order.updatedAt ?? order.createdAt;
+        return orderNumber.contains(search) ||
+            customerName.contains(search) ||
+            phone.contains(search);
+      }).toList();
+    }
 
-  if (existingTime == null ||
-      (currentTime != null &&
-          currentTime.toDate().isAfter(
-            existingTime.toDate(),
-          ))) {
-    latestOrders[key] = order;
-  }
-}
+    // Sort newest first
+    orders.sort((a, b) {
+      final aTime =
+          a.createdAt?.millisecondsSinceEpoch ?? 0;
 
-orders = latestOrders.values.toList();
+      final bTime =
+          b.createdAt?.millisecondsSinceEpoch ?? 0;
 
-// Remove orders without an order number
-orders = orders.where((o) => o.orderNumber.trim().isNotEmpty).toList();
-
-// Client-side search
-if (searchText != null && searchText.trim().isNotEmpty) {
-  final keyword = searchText.trim().toLowerCase();
-
-  orders = orders.where((order) {
-    return order.orderNumber.toLowerCase().contains(keyword) ||
-        order.customer.name.toLowerCase().contains(keyword) ||
-        order.customer.phone.toLowerCase().contains(keyword);
-  }).toList();
-}
+      return bTime.compareTo(aTime);
+    });
 
     return PaginatedOrders(
       orders: orders,
-      lastDocument: snapshot.docs.isNotEmpty
-          ? snapshot.docs.last
-          : null,
-      hasMore: snapshot.docs.length == limit,
+      lastDocument: isSearching
+          ? null
+          : (snapshot.docs.isNotEmpty
+              ? snapshot.docs.last
+              : null),
+      hasMore: isSearching
+          ? false
+          : snapshot.docs.length == limit,
     );
   } catch (e) {
-    debugPrint(
-      "❌ fetchOrders(): $e",
-    );
+    debugPrint("❌ fetchOrders(): $e");
     rethrow;
   }
 }

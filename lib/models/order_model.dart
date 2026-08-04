@@ -14,6 +14,8 @@ class OrderModel {
 
   final String orderNumber;
 
+  final bool giftAdded;
+
   final TrackingInfo? tracking;
 
   final int wooOrderId;
@@ -151,6 +153,7 @@ class OrderModel {
     required this.statusHistory,
     this.createdAt,
     this.updatedAt,
+    this.giftAdded=false,
   });
 
   factory OrderModel.fromFirestore(
@@ -165,6 +168,8 @@ class OrderModel {
       id: doc.id,
 
       uid: map['uid'] ?? '',
+
+      giftAdded: map['giftAdded'] ?? false,
 
       orderNumber:
           map['orderNumber'] ?? '',
@@ -353,6 +358,7 @@ class OrderModel {
   String? wooStatus,
   TrackingInfo? tracking,
   Timestamp? updatedAt,
+  bool? giftAdded,
 }) {
   return OrderModel(
     id: id,
@@ -408,6 +414,7 @@ class OrderModel {
       'uid': uid,
       'orderNumber': orderNumber,
       'wooOrderId': wooOrderId,
+      'giftAdded': giftAdded,
       'status': status,
       'wooStatus': wooStatus,
       'paymentMethod': paymentMethod,

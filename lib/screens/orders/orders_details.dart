@@ -45,6 +45,7 @@ final TextEditingController _notesController =
     TextEditingController();
 
 String? _selectedCourier;
+bool? _sendComplimentaryGift;
 
   late Future<OrderModel?> _future;
 late Future<UserModel?> _userFuture;
@@ -150,6 +151,7 @@ Future<void> _refresh() async {
   setState(() {
     _selectedStatus = null;
     _selectedCourier = null;
+    _sendComplimentaryGift = null;
 
     _future = _service.fetchOrder(widget.orderId);
 
@@ -227,6 +229,10 @@ if (_selectedStatus == null) {
 }
 
         _selectedCourier ??= order?.tracking?.courier;
+
+if (_sendComplimentaryGift == null) {
+  _sendComplimentaryGift = order?.giftAdded ?? false;
+}
 
 if (_trackingController.text.isEmpty) {
   _trackingController.text =
@@ -529,6 +535,26 @@ Card(
 
         const SizedBox(height: 24),
 
+CheckboxListTile(
+  value: _sendComplimentaryGift,
+  onChanged: (value) {
+    setState(() {
+      _sendComplimentaryGift = value ?? false;
+    });
+  },
+  contentPadding: EdgeInsets.zero,
+  controlAffinity: ListTileControlAffinity.leading,
+  title: const Text(
+    "Send Complimentary Gift",
+    style: TextStyle(
+      fontWeight: FontWeight.w600,
+    ),
+  ),
+  subtitle: const Text(
+    "Customer will receive a complimentary gift with this shipment.",
+  ),
+),
+
         Align(
           alignment: Alignment.centerRight,
           child: ElevatedButton.icon(
@@ -550,7 +576,6 @@ if (_selectedStatus != order.status) {
   );
 }
 
-// Save tracking information
 await _service.updateTrackingInfo(
   orderId: widget.orderId,
   tracking: TrackingInfo(
@@ -559,6 +584,13 @@ await _service.updateTrackingInfo(
     notes: _notesController.text.trim(),
   ),
 );
+
+await FirebaseFirestore.instance
+    .collection("Orders")
+    .doc(widget.orderId)
+    .update({
+  "giftAdded": _sendComplimentaryGift,
+});
 
 await _refresh();
             },
